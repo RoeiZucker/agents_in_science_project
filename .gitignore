@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Hugging Face/model artifacts
+.hf_cache/
+models/
+eval_results/
+_agent_runs/
+
+# Logs and temporary outputs
+logs/
+*.log
+*.tmp
+

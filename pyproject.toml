@@ -1,0 +1,27 @@
+[project]
+name = "hf-eval-agent"
+version = "0.1.0"
+description = "A lightweight agentic workflow for evaluating Hugging Face model/dataset pairs."
+requires-python = ">=3.10"
+dependencies = [
+  "datasets",
+  "huggingface_hub",
+  "pillow",
+  "torch",
+  "tqdm",
+  "transformers",
+]
+
+[tool.setuptools]
+py-modules = [
+  "audit_eval_results",
+  "eval_agent_core",
+  "evaluate_hf_pair",
+  "inspect_hf_dataset",
+  "inspect_hf_model",
+  "run_eval_agent",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

@@ -1,0 +1,7 @@
+datasets
+huggingface_hub
+pillow
+torch
+tqdm
+transformers
+
