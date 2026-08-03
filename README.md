@@ -11,7 +11,12 @@ arguments, runs smoke tests, audits outputs, and writes CSV/JSON summaries.
 - `inspect_hf_dataset.py` - prints dataset schema/split/task inspection JSON.
 - `inspect_hf_model.py` - prints model config/capability inspection JSON.
 - `audit_eval_results.py` - audits an existing `summary.json`/`predictions.jsonl`.
+- `analyze_eval_errors.py` - refinement agent step that summarizes failures.
+- `make_retrieval_feedback.py` - writes the next retrieval-agent feedback request.
+- `refinement_agent_core.py` - shared refinement/error-analysis helpers.
+- `mock_candidates/*.json` - mocked retrieval-agent candidate outputs.
 - `tests/test_eval_agent_core.py` - offline unit tests for planning/audit helpers.
+- `tests/test_refinement_agent_core.py` - offline unit tests for refinement helpers.
 
 ## Typical Usage
 
@@ -77,6 +82,9 @@ Important files:
 - `logs/*.command.txt` - exact command that was run.
 - `logs/*.stdout.txt` and `logs/*.stderr.txt` - child process logs.
 - `audits/*_audit.json` - audit results for smoke/full outputs.
+- `error_analysis.json` - per-model failure modes and cross-model comparisons.
+- `retrieval_feedback.json` - structured feedback for the next retrieval round.
+- `retrieval_feedback_prompt.txt` - prompt-style handoff to the retrieval agent.
 
 Model outputs are written under:
 
@@ -112,6 +120,7 @@ Offline unit tests:
 
 ```bash
 ./.venv-artifact-linker/bin/python -m unittest tests.test_eval_agent_core -v
+./.venv-artifact-linker/bin/python -m unittest tests.test_refinement_agent_core -v
 ```
 
 Syntax checks:
@@ -123,8 +132,12 @@ python3 -m py_compile \
   inspect_hf_dataset.py \
   inspect_hf_model.py \
   audit_eval_results.py \
+  analyze_eval_errors.py \
+  make_retrieval_feedback.py \
+  refinement_agent_core.py \
   run_eval_agent.py \
-  tests/test_eval_agent_core.py
+  tests/test_eval_agent_core.py \
+  tests/test_refinement_agent_core.py
 ```
 
 
@@ -145,16 +158,13 @@ python make_codex_prompt.py \
 Then run Codex non-interactively:
 
 ```bash
-codex exec \
-  --cd "$PWD" \
-  --ask-for-approval never \
-  "$(cat codex_prompt.txt)"
+codex -C "$PWD" -a never exec "$(cat codex_prompt.txt)"
 ```
 
 You can also pass the generated prompt directly:
 
 ```bash
-codex exec --cd "$PWD" --ask-for-approval never "$(
+codex -C "$PWD" -a never exec "$(
   python make_codex_prompt.py \
     --dataset google/boolq \
     --models google/flan-t5-small google/flan-t5-base \
@@ -165,3 +175,42 @@ codex exec --cd "$PWD" --ask-for-approval never "$(
 
 The prompt explicitly instructs Codex not to ask follow-up questions and to use
 the local `plan -> smoke -> full` workflow.
+
+## Refinement Agent
+
+After an evaluation run finishes, the refinement agent analyzes errors and
+prepares feedback for the next retrieval round. The retrieval agent can be
+mocked with files under `mock_candidates/` until the real retrieval component is
+connected.
+
+Analyze an existing run:
+
+```bash
+python analyze_eval_errors.py \
+  --run-dir runtime/eval_results/_agent_runs/google_boolq_validation \
+  --candidate-models mock_candidates/boolq_round1.json
+```
+
+Create retrieval feedback from that analysis:
+
+```bash
+python make_retrieval_feedback.py \
+  --error-analysis runtime/eval_results/_agent_runs/google_boolq_validation/error_analysis.json \
+  --next-round 2
+```
+
+The expected retrieval-agent handoff format is:
+
+```json
+{
+  "candidates": [
+    {
+      "model": "google/flan-t5-base",
+      "rank": 1,
+      "score": 0.87,
+      "source": "retrieval_agent",
+      "reason": "Why this model should fit the dataset/task."
+    }
+  ]
+}
+```

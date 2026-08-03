@@ -1,0 +1,22 @@
+{
+  "dataset": "google/boolq",
+  "split": "validation",
+  "round": 1,
+  "retrieval_agent": "mock",
+  "candidates": [
+    {
+      "model": "google/flan-t5-small",
+      "rank": 1,
+      "score": 0.81,
+      "source": "mock_retrieval",
+      "reason": "Instruction-tuned sequence-to-sequence model with broad QA coverage."
+    },
+    {
+      "model": "google/flan-t5-base",
+      "rank": 2,
+      "score": 0.78,
+      "source": "mock_retrieval",
+      "reason": "Larger FLAN model expected to handle yes/no reading-comprehension prompts."
+    }
+  ]
+}

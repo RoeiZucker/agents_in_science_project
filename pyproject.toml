@@ -19,6 +19,9 @@ py-modules = [
   "evaluate_hf_pair",
   "inspect_hf_dataset",
   "inspect_hf_model",
+  "analyze_eval_errors",
+  "make_retrieval_feedback",
+  "refinement_agent_core",
   "run_eval_agent",
 ]
 

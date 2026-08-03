@@ -1,0 +1,22 @@
+{
+  "dataset": "SetFit/sst2",
+  "split": "validation",
+  "round": 1,
+  "retrieval_agent": "mock",
+  "candidates": [
+    {
+      "model": "google/flan-t5-small",
+      "rank": 1,
+      "score": 0.76,
+      "source": "mock_retrieval",
+      "reason": "Instruction-tuned model that can produce positive/negative labels from text prompts."
+    },
+    {
+      "model": "google/flan-t5-base",
+      "rank": 2,
+      "score": 0.74,
+      "source": "mock_retrieval",
+      "reason": "Larger FLAN variant with stronger text classification behavior."
+    }
+  ]
+}
