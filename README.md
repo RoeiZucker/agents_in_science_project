@@ -127,3 +127,41 @@ python3 -m py_compile \
   tests/test_eval_agent_core.py
 ```
 
+
+## Running Through Codex Non-Interactively
+
+Codex can receive the task prompt directly from the terminal. To generate a
+no-follow-up prompt:
+
+```bash
+python make_codex_prompt.py \
+  --dataset google/boolq \
+  --models google/flan-t5-small google/flan-t5-base \
+  --split validation \
+  --stage full \
+  --output-file codex_prompt.txt
+```
+
+Then run Codex non-interactively:
+
+```bash
+codex exec \
+  --cd "$PWD" \
+  --ask-for-approval never \
+  "$(cat codex_prompt.txt)"
+```
+
+You can also pass the generated prompt directly:
+
+```bash
+codex exec --cd "$PWD" --ask-for-approval never "$(
+  python make_codex_prompt.py \
+    --dataset google/boolq \
+    --models google/flan-t5-small google/flan-t5-base \
+    --split validation \
+    --stage full
+)"
+```
+
+The prompt explicitly instructs Codex not to ask follow-up questions and to use
+the local `plan -> smoke -> full` workflow.
