@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import traceback
 from pathlib import Path
 
 from eval_agent_core import (
@@ -53,17 +54,21 @@ def main() -> None:
     hf_home = args.hf_home or project_root / ".hf_cache"
     python_exe = resolve_python(args.python)
 
-    dataset = inspect_dataset(
-        dataset=args.dataset,
-        subset=args.subset or None,
-        split=args.split,
-        sample_size=args.sample_size,
-        question_column=args.question_column,
-        answer_column=args.answer_column,
-        choices_column=args.choices_column,
-        image_column=args.image_column,
-        trust_remote_code=args.trust_remote_code,
-    )
+    try:
+        dataset = inspect_dataset(
+            dataset=args.dataset,
+            subset=args.subset or None,
+            split=args.split,
+            sample_size=args.sample_size,
+            question_column=args.question_column,
+            answer_column=args.answer_column,
+            choices_column=args.choices_column,
+            image_column=args.image_column,
+            trust_remote_code=args.trust_remote_code,
+        )
+    except Exception as exc:
+        record_dataset_inspection_failure(args, run_dir, exc)
+        return
 
     plans = []
     csv_rows = []
@@ -137,6 +142,63 @@ def run_and_record(command: list[str], output_dir: Path, run_dir: Path, model_na
     stdout_file.write_text(result.stdout, encoding="utf-8")
     stderr_file.write_text(result.stderr, encoding="utf-8")
     return result
+
+
+def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, exc: Exception) -> None:
+    """Preserve actionable run artifacts when evaluation cannot reach model loading."""
+    error = f"{type(exc).__name__}: {exc}"
+    trace = traceback.format_exc()
+    log_dir = run_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "dataset_inspection.stderr.txt").write_text(trace, encoding="utf-8")
+
+    inspection = {
+        "dataset": args.dataset,
+        "subset": args.subset or None,
+        "requested_split": args.split,
+        "status": "failed",
+        "error": error,
+    }
+    failures = [
+        {
+            "model": model_name,
+            "stage": "dataset_inspection",
+            "returncode": None,
+            "error": error,
+        }
+        for model_name in args.models
+    ]
+    rows = [
+        {
+            "dataset": args.dataset,
+            "split": args.split,
+            "model": model_name,
+            "score": None,
+            "total": None,
+            "labeled_total": None,
+            "status": "failed",
+            "output_dir": "",
+            "notes": f"Dataset inspection failed before model evaluation: {error}",
+        }
+        for model_name in args.models
+    ]
+    write_json(run_dir / "dataset_inspection.json", inspection)
+    write_json(run_dir / "audits" / "dataset_inspection_audit.json", {
+        "status": "bad",
+        "issues": [error],
+        "warnings": [],
+    })
+    write_json(run_dir / "plans.json", [])
+    write_json(run_dir / "failures.json", failures)
+    write_csv(run_dir / "results.csv", rows)
+    print(json.dumps({
+        "run_dir": str(run_dir),
+        "stage": args.stage,
+        "plans": 0,
+        "failures": failures,
+        "results_csv": str(run_dir / "results.csv"),
+        "plans_json": str(run_dir / "plans.json"),
+    }, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
