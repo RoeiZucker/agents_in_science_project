@@ -23,6 +23,7 @@ py-modules = [
   "make_retrieval_feedback",
   "refinement_agent_core",
   "run_eval_agent",
+  "run_evaluation_conditions",
 ]
 
 [tool.pytest.ini_options]

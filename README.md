@@ -7,6 +7,7 @@ arguments, runs smoke tests, audits outputs, and writes CSV/JSON summaries.
 ## Files
 
 - `run_eval_agent.py` - main orchestrator.
+- `run_evaluation_conditions.py` - batch runner for partner-provided dataset/model CSVs.
 - `eval_agent_core.py` - shared planning, inspection, command, and audit helpers.
 - `inspect_hf_dataset.py` - prints dataset schema/split/task inspection JSON.
 - `inspect_hf_model.py` - prints model config/capability inspection JSON.
@@ -121,6 +122,7 @@ Offline unit tests:
 ```bash
 ./.venv-artifact-linker/bin/python -m unittest tests.test_eval_agent_core -v
 ./.venv-artifact-linker/bin/python -m unittest tests.test_refinement_agent_core -v
+./.venv-artifact-linker/bin/python -m unittest tests.test_run_evaluation_conditions -v
 ```
 
 Syntax checks:
@@ -136,8 +138,10 @@ python3 -m py_compile \
   make_retrieval_feedback.py \
   refinement_agent_core.py \
   run_eval_agent.py \
+  run_evaluation_conditions.py \
   tests/test_eval_agent_core.py \
-  tests/test_refinement_agent_core.py
+  tests/test_refinement_agent_core.py \
+  tests/test_run_evaluation_conditions.py
 ```
 
 
@@ -175,6 +179,60 @@ codex -C "$PWD" -a never exec "$(
 
 The prompt explicitly instructs Codex not to ask follow-up questions and to use
 the local `plan -> smoke -> full` workflow.
+
+
+## Batch Conditions CSV
+
+To evaluate every pair from a partner-provided CSV, use
+`run_evaluation_conditions.py`. It groups rows by `query_dataset`, evaluates the
+unique models for each dataset, writes joined results, runs refinement by
+default, and can delete downloaded Hugging Face caches after each dataset.
+
+```bash
+python run_evaluation_conditions.py \
+  --conditions-csv ../evaluation_conditions.csv \
+  --project-root runtime \
+  --stage full \
+  --cleanup-cache after-dataset
+```
+
+Useful smoke-test command before a long run:
+
+```bash
+python run_evaluation_conditions.py \
+  --conditions-csv ../evaluation_conditions.csv \
+  --project-root runtime \
+  --stage smoke \
+  --limit-datasets 1 \
+  --cleanup-cache after-dataset
+```
+
+Batch outputs are written under:
+
+```text
+<project-root>/eval_results/_condition_runs/
+```
+
+Important batch files:
+
+- `batch_results.csv` - original CSV rows joined with measured eval score/status.
+- `batch_failures.json` - failed dataset-level commands.
+- `<dataset>_<split>/candidate_models_from_conditions.json` - retrieval metadata from the CSV.
+- `<dataset>_<split>/results.csv` - evaluation-agent scores for unique models.
+- `<dataset>_<split>/error_analysis.json` - refinement analysis, unless `--skip-refinement` is used.
+- `<dataset>_<split>/retrieval_feedback.json` - next retrieval request, unless `--skip-refinement` is used.
+
+Cleanup only removes downloaded cache directories:
+
+```text
+<project-root>/.hf_cache/hub
+<project-root>/.hf_cache/transformers
+<project-root>/.hf_datasets_cache
+```
+
+It does not delete `eval_results`. Use `--cleanup-cache none` to keep models and
+datasets cached between groups, or `--cleanup-cache end` to delete them only once
+after the whole batch finishes.
 
 ## Refinement Agent
 
