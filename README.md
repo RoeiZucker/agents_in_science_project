@@ -193,6 +193,7 @@ python run_evaluation_conditions.py \
   --conditions-csv ../evaluation_conditions.csv \
   --project-root runtime \
   --stage full \
+  --runner codex \
   --trust-remote-code \
   --cleanup-cache after-dataset
 ```
@@ -205,11 +206,23 @@ python run_evaluation_conditions.py \
   --project-root runtime \
   --stage smoke \
   --limit-datasets 1 \
+  --runner codex \
   --trust-remote-code \
   --cleanup-cache after-dataset
 ```
 
 Some Hugging Face datasets, including `ImperialCollegeLondon/health_fact`, require `--trust-remote-code` because they use a dataset loading script. Only use this for dataset repositories you trust.
+
+When `--runner codex` is used, the batch runner creates one Codex prompt per
+dataset group, saves it as `<dataset>_<split>/codex_prompt.txt`, and invokes:
+
+```bash
+codex -C <repo> -a never exec <prompt>
+```
+
+Codex then runs the evaluation scripts, inspects logs/results, can make small
+evaluator fixes if needed, and produces the same output files. Use `--runner
+script` to bypass Codex and run the deterministic Python-only path.
 
 Batch outputs are written under:
 

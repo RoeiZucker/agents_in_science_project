@@ -18,6 +18,7 @@ Examples:
     --conditions-csv ../evaluation_conditions.csv \
     --project-root runtime \
     --stage full \
+    --runner codex \
     --trust-remote-code \
     --cleanup-cache after-dataset \
     --skip-refinement
@@ -49,6 +50,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="auto")
     parser.add_argument("--trust-remote-code", action="store_true", help="Allow Hugging Face dataset loading scripts to run.")
     parser.add_argument("--stage", choices=("plan", "smoke", "full"), default="full")
+    parser.add_argument("--runner", choices=("script", "codex"), default="script")
+    parser.add_argument("--codex-bin", default="codex")
+    parser.add_argument("--codex-approval", default="never")
     parser.add_argument("--smoke-limit", type=int, default=3)
     parser.add_argument("--sample-size", type=int, default=20)
     parser.add_argument("--timeout", type=int, default=0)
@@ -156,12 +160,10 @@ def run_dataset_group(
 ) -> dict[str, Any]:
     run_dir = output_root / f"{safe_name(dataset)}_{args.split}"
     candidates_path = write_candidates(run_dir, dataset, rows)
-    command = eval_command(args, script_dir, project_root, output_root, dataset, unique_models(rows), hf_home)
-    result = run_command(command, script_dir, hf_home, datasets_cache, args.timeout)
-    write_command_logs(run_dir, "eval", command, result)
-    failures = command_failures(dataset, "eval", result)
-    if not args.skip_refinement and (run_dir / "results.csv").exists():
-        failures.extend(run_refinement(run_dir, candidates_path, args, script_dir, hf_home, datasets_cache))
+    if args.runner == "codex":
+        failures = run_codex_dataset_group(dataset, rows, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
+    else:
+        failures = run_script_dataset_group(dataset, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
     return {"results_csv": run_dir / "results.csv", "failures": failures}
 
 
@@ -184,6 +186,135 @@ def write_candidates(run_dir: Path, dataset: str, rows: list[dict[str, str]]) ->
     path = run_dir / "candidate_models_from_conditions.json"
     write_json(path, {"dataset": dataset, "retrieval_agent": "partner_conditions_csv", "candidates": candidates})
     return path
+
+
+def run_script_dataset_group(
+    dataset: str,
+    run_dir: Path,
+    candidates_path: Path,
+    args: argparse.Namespace,
+    script_dir: Path,
+    project_root: Path,
+    output_root: Path,
+    hf_home: Path,
+    datasets_cache: Path,
+) -> list[dict[str, Any]]:
+    command = eval_command(args, script_dir, project_root, output_root, dataset, unique_models_from_candidates(candidates_path), hf_home)
+    result = run_command(command, script_dir, hf_home, datasets_cache, args.timeout)
+    write_command_logs(run_dir, "eval", command, result)
+    failures = command_failures(dataset, "eval", result)
+    failures.extend(internal_eval_failures(run_dir))
+    failures.extend(missing_or_bad_result_failures(run_dir / "results.csv"))
+    if not args.skip_refinement and (run_dir / "results.csv").exists():
+        failures.extend(run_refinement(run_dir, candidates_path, args, script_dir, hf_home, datasets_cache))
+    return failures
+
+
+def unique_models_from_candidates(candidates_path: Path) -> list[str]:
+    value = json.loads(candidates_path.read_text(encoding="utf-8"))
+    return list(dict.fromkeys(item["model"] for item in value["candidates"]))
+
+
+def run_codex_dataset_group(
+    dataset: str,
+    rows: list[dict[str, str]],
+    run_dir: Path,
+    candidates_path: Path,
+    args: argparse.Namespace,
+    script_dir: Path,
+    project_root: Path,
+    output_root: Path,
+    hf_home: Path,
+    datasets_cache: Path,
+) -> list[dict[str, Any]]:
+    prompt = build_codex_prompt(dataset, rows, run_dir, candidates_path, args, project_root, output_root, hf_home, datasets_cache)
+    prompt_path = run_dir / "codex_prompt.txt"
+    prompt_path.write_text(prompt, encoding="utf-8")
+    command = codex_command(args, script_dir, prompt)
+    result = run_command(command, script_dir, hf_home, datasets_cache, args.timeout)
+    write_command_logs(run_dir, "codex", command_without_prompt(command), result)
+    failures = command_failures(dataset, "codex", result)
+    failures.extend(internal_eval_failures(run_dir))
+    failures.extend(missing_or_bad_result_failures(run_dir / "results.csv"))
+    return failures
+
+
+def codex_command(args: argparse.Namespace, script_dir: Path, prompt: str) -> list[str]:
+    return [args.codex_bin, "-C", str(script_dir), "-a", args.codex_approval, "exec", prompt]
+
+
+def command_without_prompt(command: list[str]) -> list[str]:
+    if len(command) < 2:
+        return command
+    return [*command[:-1], "<prompt omitted; see codex_prompt.txt>"]
+
+
+def build_codex_prompt(
+    dataset: str,
+    rows: list[dict[str, str]],
+    run_dir: Path,
+    candidates_path: Path,
+    args: argparse.Namespace,
+    project_root: Path,
+    output_root: Path,
+    hf_home: Path,
+    datasets_cache: Path,
+) -> str:
+    model_ids = unique_models(rows)
+    model_bullets = "\n".join(f"- {model}" for model in model_ids)
+    model_args = " ".join(model_ids)
+    trust_flag = " --trust-remote-code" if args.trust_remote_code else ""
+    refinement = "Skip refinement." if args.skip_refinement else "Run analyze_eval_errors.py and make_retrieval_feedback.py after evaluation."
+    cleanup = cleanup_instruction(args.cleanup_cache)
+    lines = [
+        "You are in the hf-eval-agent repo.",
+        "",
+        "Evaluate the following partner-recommended dataset/model group using the local scripts, and adapt if the generic evaluator fails.",
+        "",
+        "Dataset:",
+        f"- {dataset}",
+        "",
+        "Models:",
+        model_bullets,
+        "",
+        "Partner candidate metadata:",
+        f"- {candidates_path}",
+        "",
+        "Runtime paths:",
+        f"- PROJECT_ROOT={project_root}",
+        f"- OUTPUT_ROOT={output_root}",
+        f"- RUN_DIR={run_dir}",
+        f"- HF_HOME={hf_home}",
+        f"- HF_DATASETS_CACHE={datasets_cache}",
+        "",
+        "Required command shape to start from:",
+        f"python run_eval_agent.py --dataset {dataset} --models {model_args} --split {args.split} --stage {args.stage} --smoke-limit {args.smoke_limit} --sample-size {args.sample_size} --project-root {project_root} --output-root {output_root} --hf-home {hf_home} --python {args.python} --continue-on-error{trust_flag}",
+        "",
+        "Rules:",
+        "- Do not ask follow-up questions.",
+        "- Use the candidate metadata file when running refinement.",
+        "- Always inspect results.csv, failures.json, audits, and stderr logs before deciding whether evaluation succeeded.",
+        "- If a model is gated, missing, incompatible, unsupported, or too large, record the exact failure and continue.",
+        "- If a model family needs a small generic evaluator fix, implement it, test it, and rerun the affected smoke/full command.",
+        "- Do not delete evaluation outputs.",
+        f"- {refinement}",
+        f"- {cleanup}",
+        "",
+        "Final requirements:",
+        "- Ensure RUN_DIR/results.csv exists.",
+        "- Ensure RUN_DIR/failures.json exists if run_eval_agent.py ran.",
+        "- If refinement is enabled, ensure RUN_DIR/error_analysis.json and RUN_DIR/retrieval_feedback.json exist when possible.",
+        "- Summarize final scores and unresolved failures.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def cleanup_instruction(mode: str) -> str:
+    if mode == "none":
+        return "Keep downloaded Hugging Face caches."
+    if mode == "end":
+        return "The outer batch runner will clean caches after the full batch; do not clean them inside Codex."
+    return "You may clean only downloaded Hugging Face caches after this dataset group, never eval_results."
 
 
 def eval_command(
@@ -278,6 +409,29 @@ def command_failures(dataset: str, stage: str, result: subprocess.CompletedProce
     return [{"dataset": dataset, "stage": stage, "returncode": result.returncode}]
 
 
+def internal_eval_failures(run_dir: Path) -> list[dict[str, Any]]:
+    failures_path = run_dir / "failures.json"
+    if not failures_path.exists():
+        return []
+    failures = json.loads(failures_path.read_text(encoding="utf-8"))
+    return [{"dataset": str(run_dir), "stage": "internal_eval", **failure} for failure in failures]
+
+
+def missing_or_bad_result_failures(results_csv: Path) -> list[dict[str, Any]]:
+    failures = []
+    for row in read_eval_rows(results_csv):
+        if row.get("status") in {"ok", "warn", "planned"}:
+            continue
+        failures.append({
+            "dataset": row.get("dataset"),
+            "model": row.get("model"),
+            "stage": "result_audit",
+            "status": row.get("status"),
+            "notes": row.get("notes"),
+        })
+    return failures
+
+
 def join_results(condition_rows: list[dict[str, str]], results_csv: Path) -> list[dict[str, Any]]:
     eval_rows = index_eval_results(results_csv)
     joined = []
@@ -297,11 +451,14 @@ def join_results(condition_rows: list[dict[str, str]], results_csv: Path) -> lis
 
 
 def index_eval_results(path: Path) -> dict[tuple[str, str], dict[str, str]]:
+    return {(row["dataset"], row["model"]): row for row in read_eval_rows(path)}
+
+
+def read_eval_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
-        return {}
+        return []
     with path.open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    return {(row["dataset"], row["model"]): row for row in rows}
+        return list(csv.DictReader(handle))
 
 
 def cleanup_cache_dirs(hf_home: Path, datasets_cache: Path) -> None:
