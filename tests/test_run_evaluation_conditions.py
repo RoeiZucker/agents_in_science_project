@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from run_evaluation_conditions import (
     cleanup_cache_dirs,
     group_by_dataset,
+    eval_command,
     join_results,
     select_rows,
     unique_models,
@@ -57,6 +58,22 @@ class RunEvaluationConditionsTests(unittest.TestCase):
 
             self.assertEqual(joined[0]["eval_score"], "0.75")
             self.assertEqual(joined[1]["eval_status"], "missing")
+
+    def test_eval_command_passes_trust_remote_code(self) -> None:
+        args = SimpleNamespace(
+            python="python",
+            split="auto",
+            stage="smoke",
+            smoke_limit=3,
+            sample_size=20,
+            timeout=0,
+            continue_on_error=True,
+            trust_remote_code=True,
+        )
+
+        command = eval_command(args, Path("/repo"), Path("/project"), Path("/out"), "dataset/one", ["model/a"], Path("/hf"))
+
+        self.assertIn("--trust-remote-code", command)
 
     def test_cleanup_only_removes_hf_cache_directories(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -303,7 +303,7 @@ def choose_dtype(device: torch.device) -> torch.dtype:
 
 
 def load_eval_dataset(args: argparse.Namespace):
-    dataset = load_dataset(args.dataset, args.subset or None, split=args.split)
+    dataset = load_dataset(args.dataset, args.subset or None, split=args.split, trust_remote_code=args.trust_remote_code)
     if args.limit:
         dataset = dataset.select(range(min(args.limit, len(dataset))))
     return dataset
@@ -742,6 +742,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", required=True, help="Hugging Face model id.")
     parser.add_argument("--subset", default="", help="Optional dataset config/subset name.")
     parser.add_argument("--split", default="test")
+    parser.add_argument("--trust-remote-code", action="store_true", help="Allow Hugging Face dataset loading scripts to run.")
     parser.add_argument("--task", choices=("auto", "generation", "multiple_choice"), default="auto")
     parser.add_argument("--model-type", choices=("auto", "paligemma", "vlm_chat", "vlm_processor", "causal_lm", "seq2seq_lm"), default="auto")
     parser.add_argument("--question-column", default="question")

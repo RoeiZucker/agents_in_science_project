@@ -48,6 +48,7 @@ class DatasetInspection:
     has_gold: bool
     label_map: dict[str, str] = field(default_factory=dict)
     prompt_template: str = ""
+    trust_remote_code: bool = False
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -200,16 +201,17 @@ def inspect_dataset(
     answer_column: str = "",
     choices_column: str = "",
     image_column: str = "",
+    trust_remote_code: bool = False,
 ) -> DatasetInspection:
     notes: list[str] = []
     try:
-        splits = get_dataset_split_names(dataset, subset or None)
+        splits = get_dataset_split_names(dataset, subset or None, trust_remote_code=trust_remote_code)
     except Exception as exc:
         splits = []
         notes.append(f"Could not list splits before loading: {type(exc).__name__}: {exc}")
 
-    selected_split = select_split(dataset, subset, split, splits, sample_size, answer_column)
-    ds = load_dataset(dataset, subset or None, split=selected_split)
+    selected_split = select_split(dataset, subset, split, splits, sample_size, answer_column, trust_remote_code)
+    ds = load_dataset(dataset, subset or None, split=selected_split, trust_remote_code=trust_remote_code)
     columns = list(ds.column_names)
     features = {name: type(feature).__name__ for name, feature in ds.features.items()}
 
@@ -253,6 +255,7 @@ def inspect_dataset(
         has_gold=labeled > 0,
         label_map=label_map,
         prompt_template=prompt_template,
+        trust_remote_code=trust_remote_code,
         notes=notes,
     )
 
@@ -290,6 +293,7 @@ def select_split(
     splits: list[str],
     sample_size: int,
     answer_column: str,
+    trust_remote_code: bool = False,
 ) -> str:
     if requested != "auto":
         return requested
@@ -299,7 +303,7 @@ def select_split(
         return "test"
     for candidate in candidates:
         try:
-            ds = load_dataset(dataset, subset or None, split=candidate)
+            ds = load_dataset(dataset, subset or None, split=candidate, trust_remote_code=trust_remote_code)
         except Exception:
             continue
         a_col = answer_column or choose_answer_column(ds, list(ds.column_names), sample_size)
@@ -460,6 +464,8 @@ def build_plan(
         "image_column": dataset.image_column,
         "attn_implementation": "eager" if model.needs_eager_attention else "sdpa",
     }
+    if dataset.trust_remote_code:
+        args["trust_remote_code"] = True
     if dataset.prompt_template:
         args["prompt_template"] = dataset.prompt_template
     if dataset.label_map:

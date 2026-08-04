@@ -18,6 +18,7 @@ Examples:
     --conditions-csv ../evaluation_conditions.csv \
     --project-root runtime \
     --stage full \
+    --trust-remote-code \
     --cleanup-cache after-dataset \
     --skip-refinement
 """
@@ -46,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=Path("runtime"))
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--split", default="auto")
+    parser.add_argument("--trust-remote-code", action="store_true", help="Allow Hugging Face dataset loading scripts to run.")
     parser.add_argument("--stage", choices=("plan", "smoke", "full"), default="full")
     parser.add_argument("--smoke-limit", type=int, default=3)
     parser.add_argument("--sample-size", type=int, default=20)
@@ -219,6 +221,8 @@ def eval_command(
     ]
     if args.timeout:
         command.extend(["--timeout", str(args.timeout)])
+    if args.trust_remote_code:
+        command.append("--trust-remote-code")
     if args.continue_on_error:
         command.append("--continue-on-error")
     return command

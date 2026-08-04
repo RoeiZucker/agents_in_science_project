@@ -193,6 +193,7 @@ python run_evaluation_conditions.py \
   --conditions-csv ../evaluation_conditions.csv \
   --project-root runtime \
   --stage full \
+  --trust-remote-code \
   --cleanup-cache after-dataset
 ```
 
@@ -204,8 +205,11 @@ python run_evaluation_conditions.py \
   --project-root runtime \
   --stage smoke \
   --limit-datasets 1 \
+  --trust-remote-code \
   --cleanup-cache after-dataset
 ```
+
+Some Hugging Face datasets, including `ImperialCollegeLondon/health_fact`, require `--trust-remote-code` because they use a dataset loading script. Only use this for dataset repositories you trust.
 
 Batch outputs are written under:
 

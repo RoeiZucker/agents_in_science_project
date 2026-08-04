@@ -94,6 +94,15 @@ class EvalAgentCoreTests(unittest.TestCase):
         self.assertIn("--limit", command)
         self.assertEqual(command[-2:], ["--output-dir", "/out"])
 
+    def test_build_eval_command_includes_true_trust_remote_code(self) -> None:
+        command = build_eval_command(
+            Path("/py"),
+            Path("/out"),
+            {"dataset": "d", "model": "m", "trust_remote_code": True},
+            limit=0,
+        )
+        self.assertIn("--trust-remote-code", command)
+
 
 if __name__ == "__main__":
     unittest.main()

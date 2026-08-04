@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="+", required=True)
     parser.add_argument("--subset", default="")
     parser.add_argument("--split", default="auto")
+    parser.add_argument("--trust-remote-code", action="store_true", help="Allow Hugging Face dataset loading scripts to run.")
     parser.add_argument("--project-root", type=Path, default=DEFAULT_PROJECT_ROOT)
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--hf-home", type=Path, default=None)
@@ -61,6 +62,7 @@ def main() -> None:
         answer_column=args.answer_column,
         choices_column=args.choices_column,
         image_column=args.image_column,
+        trust_remote_code=args.trust_remote_code,
     )
 
     plans = []
