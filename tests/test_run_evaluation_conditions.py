@@ -17,6 +17,7 @@ from run_evaluation_conditions import (
     internal_eval_failures,
     join_results,
     missing_or_bad_result_failures,
+    prepare_run_dir,
     select_rows,
     unique_models,
     unique_models_from_candidates,
@@ -149,6 +150,18 @@ class RunEvaluationConditionsTests(unittest.TestCase):
             self.assertEqual(len(failures), 1)
             self.assertEqual(failures[0]["model"], "model/b")
             self.assertEqual(failures[0]["status"], "missing")
+
+    def test_prepare_run_dir_can_start_fresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            stale = run_dir / "results.csv"
+            stale.parent.mkdir()
+            stale.write_text("old", encoding="utf-8")
+
+            prepare_run_dir(run_dir, fresh=True)
+
+            self.assertTrue(run_dir.exists())
+            self.assertFalse(stale.exists())
 
     def test_cleanup_only_removes_hf_cache_directories(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

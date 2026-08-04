@@ -195,6 +195,7 @@ python run_evaluation_conditions.py \
   --stage full \
   --runner codex \
   --trust-remote-code \
+  --fresh-run-dir \
   --cleanup-cache after-dataset
 ```
 
@@ -208,6 +209,7 @@ python run_evaluation_conditions.py \
   --limit-datasets 1 \
   --runner codex \
   --trust-remote-code \
+  --fresh-run-dir \
   --cleanup-cache after-dataset
 ```
 
@@ -223,6 +225,8 @@ codex -C <repo> -a never exec <prompt>
 Codex then runs the evaluation scripts, inspects logs/results, can make small
 evaluator fixes if needed, and produces the same output files. Use `--runner
 script` to bypass Codex and run the deterministic Python-only path.
+
+Use `--fresh-run-dir` for reruns or small subsets, so old per-dataset outputs do not get counted as current failures.
 
 Batch outputs are written under:
 

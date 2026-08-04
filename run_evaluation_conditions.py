@@ -12,7 +12,8 @@ Examples:
     --project-root runtime \
     --condition A_merged \
     --limit-datasets 1 \
-    --stage smoke
+    --stage smoke \
+    --fresh-run-dir
 
   python run_evaluation_conditions.py \
     --conditions-csv ../evaluation_conditions.csv \
@@ -64,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--continue-on-error", action="store_true", default=True)
     parser.add_argument("--stop-on-error", action="store_false", dest="continue_on_error")
     parser.add_argument("--skip-refinement", action="store_true")
+    parser.add_argument("--fresh-run-dir", action="store_true", help="Delete each selected dataset run directory before starting it.")
     parser.add_argument(
         "--cleanup-cache",
         choices=("none", "after-dataset", "end"),
@@ -159,6 +161,7 @@ def run_dataset_group(
     datasets_cache: Path,
 ) -> dict[str, Any]:
     run_dir = output_root / f"{safe_name(dataset)}_{args.split}"
+    prepare_run_dir(run_dir, args.fresh_run_dir)
     candidates_path = write_candidates(run_dir, dataset, rows)
     if args.runner == "codex":
         failures = run_codex_dataset_group(dataset, rows, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
@@ -166,6 +169,12 @@ def run_dataset_group(
         failures = run_script_dataset_group(dataset, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
     return {"results_csv": run_dir / "results.csv", "failures": failures}
 
+
+
+def prepare_run_dir(run_dir: Path, fresh: bool) -> None:
+    if fresh and run_dir.exists():
+        shutil.rmtree(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
 
 def unique_models(rows: list[dict[str, str]]) -> list[str]:
     return list(dict.fromkeys(row["model_name"] for row in rows))
