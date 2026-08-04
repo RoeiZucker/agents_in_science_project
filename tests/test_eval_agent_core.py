@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from eval_agent_core import (
     audit_eval_dir,
     build_eval_command,
+    choose_first,
     has_null_use_cache,
     infer_model_type_from_metadata,
     sanitize_model_dir,
@@ -16,6 +17,12 @@ from eval_agent_core import (
 
 
 class EvalAgentCoreTests(unittest.TestCase):
+    def test_recognizes_claim_as_an_input_text_column(self) -> None:
+        self.assertEqual(
+            choose_first(["claim_id", "claim", "label"], ("question", "text", "claim"), "question"),
+            "claim",
+        )
+
     def test_infers_known_model_families(self) -> None:
         self.assertEqual(
             infer_model_type_from_metadata("TinyLlama/TinyLlama-1.1B", "llama", ["LlamaForCausalLM"]),

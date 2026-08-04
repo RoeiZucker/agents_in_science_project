@@ -23,7 +23,7 @@ DEFAULT_PYTHON = Path(__file__).resolve().parent / ".venv-artifact-linker" / "bi
 EVALUATOR = Path(__file__).resolve().parent / "evaluate_hf_pair.py"
 
 
-QUESTION_CANDIDATES = ("question", "prompt", "query", "instruction", "text")
+QUESTION_CANDIDATES = ("question", "prompt", "query", "instruction", "text", "claim")
 ANSWER_CANDIDATES = ("answer", "answerKey", "label", "labels", "target", "gold", "correct_answer")
 CHOICES_CANDIDATES = ("choices", "options", "answers", "candidates")
 IMAGE_CANDIDATES = ("image", "img", "picture", "pixel_values")
