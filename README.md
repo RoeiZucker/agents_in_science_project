@@ -8,6 +8,8 @@ arguments, runs smoke tests, audits outputs, and writes CSV/JSON summaries.
 
 - `run_eval_agent.py` - main orchestrator.
 - `run_evaluation_conditions.py` - batch runner for partner-provided dataset/model CSVs.
+- `download_condition_datasets.py` - pre-downloads condition datasets into the same Hugging Face cache used by the batch runner.
+- `delete_condition_datasets.py` - deletes warmed dataset caches after evaluation.
 - `eval_agent_core.py` - shared planning, inspection, command, and audit helpers.
 - `inspect_hf_dataset.py` - prints dataset schema/split/task inspection JSON.
 - `inspect_hf_model.py` - prints model config/capability inspection JSON.
@@ -188,6 +190,19 @@ To evaluate every pair from a partner-provided CSV, use
 unique models for each dataset, writes joined results, runs refinement by
 default, and can delete downloaded Hugging Face caches after each dataset.
 
+Pre-download datasets outside nested Codex when dataset loading needs external
+hosts such as Google Drive:
+
+```bash
+python download_condition_datasets.py \
+  --conditions-csv ../evaluation_conditions.csv \
+  --project-root runtime \
+  --trust-remote-code
+```
+
+Run the Codex-backed evaluation against the same `runtime/.hf_cache` and
+`runtime/.hf_datasets_cache` directories:
+
 ```bash
 python run_evaluation_conditions.py \
   --conditions-csv ../evaluation_conditions.csv \
@@ -197,6 +212,14 @@ python run_evaluation_conditions.py \
   --trust-remote-code \
   --fresh-run-dir \
   --cleanup-cache after-dataset
+```
+
+Delete warmed dataset caches later:
+
+```bash
+python delete_condition_datasets.py \
+  --conditions-csv ../evaluation_conditions.csv \
+  --project-root runtime
 ```
 
 Useful smoke-test command before a long run:
