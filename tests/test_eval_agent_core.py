@@ -11,12 +11,50 @@ from eval_agent_core import (
     build_eval_command,
     choose_first,
     has_null_use_cache,
+    infer_label_map,
     infer_model_type_from_metadata,
+    needs_label_semantics_lookup,
     sanitize_model_dir,
 )
 
 
+class FakeDataset:
+    def __init__(self, rows, features):
+        self.rows = rows
+        self.features = features
+        self.column_names = list(features)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __getitem__(self, index):
+        return self.rows[index]
+
+
+class FakeLabelFeature:
+    def __init__(self, names):
+        self.names = names
+
+
 class EvalAgentCoreTests(unittest.TestCase):
+
+    def test_infers_label_map_from_classlabel_names(self) -> None:
+        ds = FakeDataset(
+            [{"text": "claim", "label": 1}],
+            {"text": object(), "label": FakeLabelFeature(["false", "true", "unproven"])},
+        )
+        self.assertEqual(
+            infer_label_map(ds, ds.column_names, "label", 5),
+            {"0": "false", "1": "true", "2": "unproven"},
+        )
+
+    def test_detects_opaque_numeric_labels_without_metadata(self) -> None:
+        ds = FakeDataset(
+            [{"text": "claim", "answer": 3}],
+            {"text": object(), "answer": object()},
+        )
+        self.assertTrue(needs_label_semantics_lookup(ds, "answer", 5))
+
     def test_recognizes_claim_as_an_input_text_column(self) -> None:
         self.assertEqual(
             choose_first(["claim_id", "claim", "label"], ("question", "text", "claim"), "question"),

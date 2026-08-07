@@ -234,6 +234,13 @@ def inspect_dataset(
     prompt_template = infer_prompt_template(columns, q_col, a_col, label_map)
     if label_map:
         notes.append(f"Using label map for raw labels: {label_map}.")
+        notes.append("Resolved label names from dataset metadata; verify whether scoring should preserve all labels or collapse them for this task.")
+    elif needs_label_semantics_lookup(ds, a_col, sample_size):
+        notes.append(
+            "Answer column contains opaque numeric labels. Inspect dataset features, "
+            "dataset card metadata, and sample rows to recover label meanings before "
+            "choosing label_map, prompt_template, or any binary label collapse."
+        )
     if prompt_template:
         notes.append("Using inferred prompt template for generation/classification.")
 
@@ -262,6 +269,9 @@ def inspect_dataset(
 
 
 def infer_label_map(ds: Any, columns: list[str], answer_column: str, sample_size: int) -> dict[str, str]:
+    feature_map = infer_feature_label_map(ds, answer_column)
+    if feature_map:
+        return feature_map
     if answer_column == "label" and "label_text" in columns:
         mapping: dict[str, str] = {}
         for idx in range(min(sample_size, len(ds))):
@@ -277,10 +287,32 @@ def infer_label_map(ds: Any, columns: list[str], answer_column: str, sample_size
     return {}
 
 
+def infer_feature_label_map(ds: Any, answer_column: str) -> dict[str, str]:
+    feature = ds.features.get(answer_column) if answer_column in ds.features else None
+    names = getattr(feature, "names", None)
+    if not names:
+        return {}
+    return {str(idx): str(name) for idx, name in enumerate(names)}
+
+
+def needs_label_semantics_lookup(ds: Any, answer_column: str, sample_size: int) -> bool:
+    if answer_column not in ds.column_names:
+        return False
+    for idx in range(min(sample_size, len(ds))):
+        value = ds[idx].get(answer_column)
+        if isinstance(value, bool) or value is None:
+            continue
+        if isinstance(value, int):
+            return True
+        if str(value).strip().isdigit():
+            return True
+    return False
+
+
 def infer_prompt_template(columns: list[str], question_column: str, answer_column: str, label_map: dict[str, str]) -> str:
     if label_map == {"False": "no", "True": "yes"} and "passage" in columns and question_column in columns:
         return "Passage: {passage}\nQuestion: {question}\nAnswer yes or no:"
-    if answer_column == "label" and "label_text" in columns:
+    if label_map and question_column in columns:
         values = ", ".join(sorted(set(label_map.values()))) or "the correct label"
         text_column = "text" if "text" in columns else question_column
         return f"Text: {{{text_column}}}\nAnswer with one of: {values}.\nLabel:"
