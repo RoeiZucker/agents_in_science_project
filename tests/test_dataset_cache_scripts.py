@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from delete_condition_datasets import cache_names, deletion_targets
-from download_condition_datasets import selected_datasets, target_splits
+from download_condition_datasets import selected_datasets, selected_models, target_splits
 
 
 class DatasetCacheScriptTests(unittest.TestCase):
@@ -20,6 +20,8 @@ class DatasetCacheScriptTests(unittest.TestCase):
                 condition=["A"],
                 dataset=[],
                 limit_datasets=0,
+                limit_pairs=0,
+                include_models=False,
             )
 
             self.assertEqual(selected_datasets(args), ["owner/one", "owner/two"])
@@ -33,6 +35,8 @@ class DatasetCacheScriptTests(unittest.TestCase):
                 condition=[],
                 dataset=["owner/two"],
                 limit_datasets=0,
+                limit_pairs=0,
+                include_models=False,
             )
 
             self.assertEqual(selected_datasets(args), ["owner/two"])
@@ -41,6 +45,20 @@ class DatasetCacheScriptTests(unittest.TestCase):
         args = SimpleNamespace(split=["validation", "test"], subset="", trust_remote_code=False)
 
         self.assertEqual(target_splits("owner/one", args), ["validation", "test"])
+
+    def test_selects_limited_models_from_conditions_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "conditions.csv"
+            write_conditions(path)
+            args = SimpleNamespace(
+                conditions_csv=path,
+                condition=[],
+                dataset=["owner/one"],
+                limit_pairs=1,
+                include_models=True,
+            )
+
+            self.assertEqual(selected_models(args), ["model/a"])
 
     def test_cache_names_cover_huggingface_dataset_cache_forms(self) -> None:
         names = cache_names("ImperialCollegeLondon/health_fact")

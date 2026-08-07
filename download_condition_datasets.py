@@ -19,6 +19,13 @@ Examples:
     --project-root runtime \
     --split train \
     --split test
+
+  python download_condition_datasets.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --dataset ImperialCollegeLondon/health_fact \
+    --include-models \
+    --trust-remote-code
 """
 from __future__ import annotations
 
@@ -31,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from datasets import get_dataset_split_names, load_dataset
+from huggingface_hub import snapshot_download
 
 
 COMMON_SPLITS = ("train", "validation", "test")
@@ -46,7 +54,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", action="append", default=[])
     parser.add_argument("--subset", default="")
     parser.add_argument("--trust-remote-code", action="store_true")
+    parser.add_argument("--include-models", action="store_true", help="Also cache selected model snapshots from the conditions CSV.")
     parser.add_argument("--limit-datasets", type=int, default=0)
+    parser.add_argument("--limit-pairs", type=int, default=0)
     parser.add_argument("--continue-on-error", action="store_true", default=True)
     parser.add_argument("--stop-on-error", action="store_false", dest="continue_on_error")
     return parser.parse_args()
@@ -60,7 +70,9 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     datasets = selected_datasets(args)
-    results = download_all(datasets, args)
+    dataset_results = download_all(datasets, args)
+    model_results = download_models(selected_models(args), args)
+    results = {"datasets": dataset_results, "models": model_results}
     write_json(output_root / "dataset_downloads.json", results)
     print(json.dumps(summary(results, output_root), indent=2))
     if failed(results):
@@ -88,18 +100,35 @@ def selected_datasets(args: argparse.Namespace) -> list[str]:
 def dataset_names(args: argparse.Namespace) -> list[str]:
     names = list(args.dataset)
     if args.conditions_csv:
-        names.extend(names_from_csv(args.conditions_csv, set(args.condition)))
+        names.extend(row["query_dataset"] for row in selected_rows(args))
     return unique(names)
 
 
-def names_from_csv(path: Path, conditions: set[str]) -> list[str]:
+def selected_models(args: argparse.Namespace) -> list[str]:
+    if not args.include_models or not args.conditions_csv:
+        return []
+    return unique([row["model_name"] for row in selected_rows(args)])
+
+
+def selected_rows(args: argparse.Namespace) -> list[dict[str, str]]:
+    rows = rows_from_csv(args.conditions_csv)
+    if args.condition:
+        rows = [row for row in rows if row.get("condition") in set(args.condition)]
+    if args.dataset:
+        rows = [row for row in rows if row.get("query_dataset") in set(args.dataset)]
+    if args.limit_pairs:
+        rows = rows[: args.limit_pairs]
+    return rows
+
+
+def rows_from_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if not rows or "query_dataset" not in rows[0]:
         raise ValueError("conditions CSV must include query_dataset")
-    if conditions:
-        rows = [row for row in rows if row.get("condition") in conditions]
-    return [row["query_dataset"] for row in rows]
+    if "model_name" not in rows[0]:
+        raise ValueError("conditions CSV must include model_name when downloading models")
+    return rows
 
 
 def unique(values: list[str]) -> list[str]:
@@ -144,16 +173,35 @@ def failure(split: str, exc: Exception) -> dict[str, str]:
     return {"split": split, "type": type(exc).__name__, "message": str(exc)}
 
 
-def failed(results: list[dict[str, Any]]) -> bool:
-    return any(result["status"] == "failed" for result in results)
+def download_models(models: list[str], args: argparse.Namespace) -> list[dict[str, Any]]:
+    return [download_model(model) for model in models]
 
 
-def summary(results: list[dict[str, Any]], output_root: Path) -> dict[str, Any]:
+def download_model(model: str) -> dict[str, Any]:
+    try:
+        path = snapshot_download(repo_id=model)
+        return {"model": model, "snapshot": path, "status": "ok"}
+    except Exception as exc:
+        return {"model": model, "status": "failed", "type": type(exc).__name__, "message": str(exc)}
+
+
+def failed(results: dict[str, list[dict[str, Any]]]) -> bool:
+    dataset_failed = any(result["status"] == "failed" for result in results["datasets"])
+    model_failed = any(result["status"] == "failed" for result in results["models"])
+    return dataset_failed or model_failed
+
+
+def summary(results: dict[str, list[dict[str, Any]]], output_root: Path) -> dict[str, Any]:
+    datasets = results["datasets"]
+    models = results["models"]
     return {
         "output_root": str(output_root),
-        "datasets": len(results),
-        "downloaded_splits": sum(len(result["splits"]) for result in results),
-        "failed_datasets": sum(1 for result in results if result["status"] == "failed"),
+        "datasets": len(datasets),
+        "downloaded_splits": sum(len(result["splits"]) for result in datasets),
+        "failed_datasets": sum(1 for result in datasets if result["status"] == "failed"),
+        "models": len(models),
+        "downloaded_models": sum(1 for result in models if result["status"] == "ok"),
+        "failed_models": sum(1 for result in models if result["status"] == "failed"),
         "report": str(output_root / "dataset_downloads.json"),
     }
 

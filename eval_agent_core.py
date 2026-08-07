@@ -432,8 +432,16 @@ def infer_model_type_from_metadata(model: str, config_model_type: str | None, ar
         return "vlm_chat"
     if any("conditionalgeneration" in arch for arch in lower_arch) and ("vl" in model_type or "vision" in model_type):
         return "vlm_processor"
+    if any("sequenceclassification" in arch for arch in lower_arch):
+        return "sequence_classifier"
+    if "sequence-classification" in lower_model or "zeroshot" in lower_model:
+        return "sequence_classifier"
     if any("seq2seq" in arch or "t5" in arch for arch in lower_arch) or model_type in {"t5", "mt5", "bart"}:
         return "seq2seq_lm"
+    if any(name in lower_model for name in ("flan-t5", "minicheck-flan", "mt5", "t5-")):
+        return "seq2seq_lm"
+    if any(name in lower_model for name in ("bert", "roberta", "deberta")):
+        return "sequence_classifier"
     return "causal_lm"
 
 

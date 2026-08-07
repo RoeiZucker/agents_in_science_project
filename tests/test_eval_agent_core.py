@@ -33,6 +33,14 @@ class EvalAgentCoreTests(unittest.TestCase):
             "seq2seq_lm",
         )
         self.assertEqual(
+            infer_model_type_from_metadata("yaxili96/FactCG-DeBERTa-v3-Large", "deberta-v2", ["DebertaV2ForSequenceClassification"]),
+            "sequence_classifier",
+        )
+        self.assertEqual(
+            infer_model_type_from_metadata("lytang/MiniCheck-Flan-T5-Large", None, []),
+            "seq2seq_lm",
+        )
+        self.assertEqual(
             infer_model_type_from_metadata("OpenGVLab/InternVL3_5-2B", "internvl_chat", ["InternVLChatModel"]),
             "vlm_chat",
         )

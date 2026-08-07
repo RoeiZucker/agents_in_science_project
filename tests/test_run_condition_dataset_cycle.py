@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from run_condition_dataset_cycle import delete_command, download_command, evaluate_command, selected_datasets
+from run_condition_dataset_cycle import delete_command, download_command, evaluate_command, reported_failures, selected_datasets
 
 
 class RunConditionDatasetCycleTests(unittest.TestCase):
@@ -33,6 +33,8 @@ class RunConditionDatasetCycleTests(unittest.TestCase):
         self.assertIn("--dataset", command)
         self.assertIn("owner/one", command)
         self.assertIn("--trust-remote-code", command)
+        self.assertIn("--include-models", command)
+        self.assertIn("--limit-pairs", command)
 
     def test_evaluate_command_keeps_cache_for_delete_step(self) -> None:
         args = base_args()
@@ -53,6 +55,12 @@ class RunConditionDatasetCycleTests(unittest.TestCase):
         self.assertIn("delete_condition_datasets.py", command[1])
         self.assertIn("--dataset", command)
         self.assertIn("owner/one", command)
+
+
+    def test_reported_failures_reads_eval_summary(self) -> None:
+        text = '{"datasets": 1, "failures": 4}'
+
+        self.assertEqual(reported_failures(text), 4)
 
 
 def base_args() -> SimpleNamespace:
@@ -76,6 +84,7 @@ def base_args() -> SimpleNamespace:
         continue_on_error=True,
         skip_refinement=False,
         fresh_run_dir=True,
+        skip_model_download=False,
     )
 
 

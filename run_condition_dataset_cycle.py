@@ -21,6 +21,14 @@ Examples:
   python run_condition_dataset_cycle.py \
     --conditions-csv ../evaluation_conditions.csv \
     --project-root runtime \
+    --dataset ImperialCollegeLondon/health_fact \
+    --limit-pairs 2 \
+    --skip-model-download \
+    --stage smoke
+
+  python run_condition_dataset_cycle.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
     --condition A_merged \
     --stage full \
     --runner script \
@@ -65,6 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-refinement", action="store_true")
     parser.add_argument("--fresh-run-dir", action="store_true")
     parser.add_argument("--keep-dataset-cache", action="store_true")
+    parser.add_argument("--skip-model-download", action="store_true", help="Only predownload datasets, not model snapshots.")
     return parser.parse_args()
 
 
@@ -131,7 +140,7 @@ def run_dataset_cycle(dataset: str, args: argparse.Namespace, script_dir: Path) 
     steps = []
     steps.append(run_step("download", download_command(dataset, args, script_dir), script_dir))
     if steps[-1]["returncode"] == 0:
-        steps.append(run_step("evaluate", evaluate_command(dataset, args, script_dir), script_dir))
+        steps.append(evaluate_step(evaluate_command(dataset, args, script_dir), script_dir))
     if not args.keep_dataset_cache:
         steps.append(run_step("delete", delete_command(dataset, args, script_dir), script_dir))
     return {"dataset": dataset, "status": status(steps), "steps": steps}
@@ -148,6 +157,23 @@ def run_step(name: str, command: list[str], cwd: Path) -> dict[str, Any]:
     }
 
 
+def evaluate_step(command: list[str], cwd: Path) -> dict[str, Any]:
+    step = run_step("evaluate", command, cwd)
+    failures = reported_failures(step["stdout_tail"])
+    if failures:
+        step["returncode"] = 1
+        step["reported_failures"] = failures
+    return step
+
+
+def reported_failures(text: str) -> int:
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return 0
+    return int(value.get("failures", 0))
+
+
 def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -> list[str]:
     command = [args.python, str(script_dir / "download_condition_datasets.py"), "--conditions-csv", str(args.conditions_csv), "--project-root", str(args.project_root), "--dataset", dataset]
     command.extend(download_split_args(args))
@@ -155,6 +181,12 @@ def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -
         command.extend(["--output-root", str(args.output_root / "_dataset_downloads")])
     if args.trust_remote_code:
         command.append("--trust-remote-code")
+    if not args.skip_model_download:
+        command.append("--include-models")
+    if args.limit_pairs:
+        command.extend(["--limit-pairs", str(args.limit_pairs)])
+    for condition in args.condition:
+        command.extend(["--condition", condition])
     if args.continue_on_error:
         command.append("--continue-on-error")
     return command

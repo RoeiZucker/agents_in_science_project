@@ -38,6 +38,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoModelForImageTextToText,
     AutoModelForSeq2SeqLM,
+    AutoModelForSequenceClassification,
     AutoProcessor,
     AutoTokenizer,
     PaliGemmaForConditionalGeneration,
@@ -266,6 +267,9 @@ def infer_model_type(model_name: str, explicit: str) -> str:
         return "vlm_chat"
     if is_vlm_processor_config(config):
         return "vlm_processor"
+    architectures = [str(name).lower() for name in getattr(config, "architectures", []) or []]
+    if any("sequenceclassification" in name for name in architectures):
+        return "sequence_classifier"
     return "seq2seq_lm" if getattr(config, "is_encoder_decoder", False) else "causal_lm"
 
 
@@ -325,6 +329,8 @@ def load_model_and_io(args: argparse.Namespace, model_type: str, device: torch.d
         return load_vlm_chat(args, device, dtype)
     if model_type == "vlm_processor":
         return load_vlm_processor(args, device, dtype)
+    if model_type == "sequence_classifier":
+        return load_sequence_classifier(args, device, dtype)
     return load_text_model(args, model_type, device, dtype)
 
 
@@ -351,6 +357,13 @@ def load_text_model(args: argparse.Namespace, model_type: str, device: torch.dev
         model_kwargs["torch_dtype"] = torch.float32
 
     model = model_class.from_pretrained(model_source(args), **model_kwargs).to(device)
+    return model.eval(), tokenizer
+
+
+def load_sequence_classifier(args: argparse.Namespace, device: torch.device, dtype: torch.dtype):
+    tokenizer = AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True)
+    model_kwargs = {"torch_dtype": torch.float32 if device.type == "cpu" else dtype, "trust_remote_code": True}
+    model = AutoModelForSequenceClassification.from_pretrained(model_source(args), **model_kwargs).to(device)
     return model.eval(), tokenizer
 
 
@@ -461,9 +474,28 @@ def option_continuations(ctx: EvalContext, example: dict[str, Any]) -> tuple[lis
 
 
 def predict_example(ctx: EvalContext, example: dict[str, Any]) -> Prediction:
+    if ctx.model_type == "sequence_classifier":
+        return predict_sequence_classifier(ctx, example)
     if ctx.task == "multiple_choice":
         return predict_multiple_choice(ctx, example)
     return predict_generation(ctx, example)
+
+
+def predict_sequence_classifier(ctx: EvalContext, example: dict[str, Any]) -> Prediction:
+    prompt = build_generation_prompt(ctx, example)
+    inputs = ctx.io(prompt, return_tensors="pt", truncation=True).to(ctx.device)
+    with torch.no_grad():
+        logits = ctx.model(**inputs).logits[0]
+    label_id = int(torch.argmax(logits).item())
+    label = classifier_label(ctx, label_id)
+    return Prediction(label, {"label_id": label_id, "logits": logits.detach().cpu().tolist()})
+
+
+def classifier_label(ctx: EvalContext, label_id: int) -> str:
+    raw_label = str(getattr(ctx.model.config, "id2label", {}).get(label_id, label_id))
+    if raw_label.lower().startswith("label_"):
+        raw_label = str(label_id)
+    return getattr(ctx.args, "_label_map", {}).get(raw_label, raw_label)
 
 
 def predict_multiple_choice(ctx: EvalContext, example: dict[str, Any]) -> Prediction:
@@ -744,7 +776,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="test")
     parser.add_argument("--trust-remote-code", action="store_true", help="Allow Hugging Face dataset loading scripts to run.")
     parser.add_argument("--task", choices=("auto", "generation", "multiple_choice"), default="auto")
-    parser.add_argument("--model-type", choices=("auto", "paligemma", "vlm_chat", "vlm_processor", "causal_lm", "seq2seq_lm"), default="auto")
+    parser.add_argument("--model-type", choices=("auto", "paligemma", "vlm_chat", "vlm_processor", "causal_lm", "seq2seq_lm", "sequence_classifier"), default="auto")
     parser.add_argument("--question-column", default="question")
     parser.add_argument("--answer-column", default="answer")
     parser.add_argument("--choices-column", default="choices")
