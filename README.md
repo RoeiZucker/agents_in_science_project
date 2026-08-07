@@ -10,6 +10,7 @@ arguments, runs smoke tests, audits outputs, and writes CSV/JSON summaries.
 - `run_evaluation_conditions.py` - batch runner for partner-provided dataset/model CSVs.
 - `download_condition_datasets.py` - pre-downloads condition datasets into the same Hugging Face cache used by the batch runner.
 - `delete_condition_datasets.py` - deletes warmed dataset caches after evaluation.
+- `run_condition_dataset_cycle.py` - loops through selected datasets as download -> evaluate -> delete.
 - `eval_agent_core.py` - shared planning, inspection, command, and audit helpers.
 - `inspect_hf_dataset.py` - prints dataset schema/split/task inspection JSON.
 - `inspect_hf_model.py` - prints model config/capability inspection JSON.
@@ -221,6 +222,22 @@ python delete_condition_datasets.py \
   --conditions-csv ../evaluation_conditions.csv \
   --project-root runtime
 ```
+
+For the lowest network/cache risk, run the full flow one dataset at a time:
+
+```bash
+python run_condition_dataset_cycle.py \
+  --conditions-csv ../evaluation_conditions.csv \
+  --project-root runtime \
+  --stage smoke \
+  --runner codex \
+  --trust-remote-code \
+  --fresh-run-dir
+```
+
+That cycle runs `download_condition_datasets.py --dataset ...`, then
+`run_evaluation_conditions.py --dataset ... --cleanup-cache none`, then
+`delete_condition_datasets.py --dataset ...` before moving to the next dataset.
 
 Useful smoke-test command before a long run:
 
