@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
-"""Plan and run HF model/dataset evaluations with smoke tests and auditing."""
+"""Plan and run HF model/dataset evaluations with smoke tests and auditing.
+
+Examples:
+  python run_eval_agent.py \
+    --dataset xai-org/RealworldQA \
+    --models google/paligemma-3b-ft-nlvr2-448 \
+    --split test \
+    --stage smoke \
+    --project-root runtime
+
+  python run_eval_agent.py \
+    --dataset ImperialCollegeLondon/health_fact \
+    --models yaxili96/FactCG-DeBERTa-v3-Large lytang/MiniCheck-Flan-T5-Large \
+    --split auto \
+    --stage plan \
+    --trust-remote-code \
+    --project-root runtime
+
+  python run_eval_agent.py \
+    --dataset tau/commonsense_qa \
+    --models HuggingFaceTB/SmolLM3-3B \
+    --split validation \
+    --stage full \
+    --continue-on-error \
+    --project-root runtime
+"""
 from __future__ import annotations
 
 import argparse
@@ -54,6 +79,8 @@ def main() -> None:
     hf_home = args.hf_home or project_root / ".hf_cache"
     python_exe = resolve_python(args.python)
 
+    trace = make_trace(args)
+    add_trace_step(trace, "inspect_dataset", "started", {"dataset": args.dataset, "split": args.split})
     try:
         dataset = inspect_dataset(
             dataset=args.dataset,
@@ -67,15 +94,19 @@ def main() -> None:
             trust_remote_code=args.trust_remote_code,
         )
     except Exception as exc:
-        record_dataset_inspection_failure(args, run_dir, exc)
+        add_trace_step(trace, "inspect_dataset", "failed", {"error": f"{type(exc).__name__}: {exc}"})
+        record_dataset_inspection_failure(args, run_dir, exc, trace)
         return
+    add_trace_step(trace, "inspect_dataset", "completed", dataset.to_dict())
 
     plans = []
     csv_rows = []
     failures = []
 
     for model_name in args.models:
+        add_trace_step(trace, "inspect_model", "started", {"model": model_name})
         model = inspect_model(model_name)
+        add_trace_step(trace, "inspect_model", "completed", model.to_dict())
         plan = build_plan(
             dataset=dataset,
             model=model,
@@ -85,15 +116,18 @@ def main() -> None:
             output_root=output_root / "eval_results",
         )
         plans.append(plan)
+        add_trace_step(trace, "build_plan", "completed", plan.to_dict())
 
         if args.stage == "plan":
             audit = {"status": "planned", "summary": {}, "warnings": [], "issues": []}
             csv_rows.append(csv_row_from_audit(plan, audit, plan.output_dir))
+            add_trace_step(trace, "evaluate", "planned", {"model": model_name, "output_dir": str(plan.output_dir)})
             continue
 
         smoke = run_and_record(plan.smoke_command, plan.smoke_output_dir, run_dir, model_name, "smoke", hf_home, args.timeout)
         smoke_audit = audit_eval_dir(plan.smoke_output_dir)
         write_json(run_dir / "audits" / f"{plan.model.model.replace('/', '_')}_smoke_audit.json", smoke_audit)
+        record_eval_trace(trace, model_name, "smoke", smoke.returncode, smoke_audit)
         if smoke.returncode != 0 or smoke_audit.get("status") == "bad":
             failures.append({"model": model_name, "stage": "smoke", "returncode": smoke.returncode, "audit": smoke_audit})
             csv_rows.append(csv_row_from_audit(plan, smoke_audit, plan.smoke_output_dir))
@@ -108,15 +142,19 @@ def main() -> None:
         full = run_and_record(plan.full_command, plan.output_dir, run_dir, model_name, "full", hf_home, args.timeout)
         full_audit = audit_eval_dir(plan.output_dir)
         write_json(run_dir / "audits" / f"{plan.model.model.replace('/', '_')}_full_audit.json", full_audit)
+        record_eval_trace(trace, model_name, "full", full.returncode, full_audit)
         csv_rows.append(csv_row_from_audit(plan, full_audit, plan.output_dir))
         if full.returncode != 0 or full_audit.get("status") == "bad":
             failures.append({"model": model_name, "stage": "full", "returncode": full.returncode, "audit": full_audit})
             if not args.continue_on_error:
                 break
 
+    trace["outputs"] = output_paths(run_dir)
+    trace["failures"] = failures
     write_json(run_dir / "dataset_inspection.json", dataset.to_dict())
     write_json(run_dir / "plans.json", [plan.to_dict() for plan in plans])
     write_json(run_dir / "failures.json", failures)
+    write_json(run_dir / "agent_trace.json", trace)
     write_csv(run_dir / "results.csv", csv_rows)
 
     print(json.dumps({
@@ -128,6 +166,58 @@ def main() -> None:
         "plans_json": str(run_dir / "plans.json"),
     }, indent=2, ensure_ascii=False))
 
+
+
+def make_trace(args: argparse.Namespace) -> dict:
+    return {
+        "dataset": args.dataset,
+        "requested_split": args.split,
+        "requested_stage": args.stage,
+        "needed_to_do": required_actions(args),
+        "steps": [],
+        "outputs": {},
+        "failures": [],
+    }
+
+
+def required_actions(args: argparse.Namespace) -> list[str]:
+    actions = [
+        "Inspect dataset schema, split, input columns, answer column, label semantics, and task type.",
+        "Inspect each model config and metadata to choose the evaluator adapter.",
+        "Build reproducible evaluation commands and write plans.json.",
+    ]
+    if args.stage == "plan":
+        actions.append("Stop after planning without running model inference.")
+    elif args.stage == "smoke":
+        actions.append("Run smoke evaluation, audit predictions, and write results.csv.")
+    else:
+        actions.append("Run smoke first, then full evaluation, audit predictions, and write results.csv.")
+    return actions
+
+
+def add_trace_step(trace: dict, name: str, status: str, details: dict) -> None:
+    trace["steps"].append({"name": name, "status": status, "details": details})
+
+
+def record_eval_trace(trace: dict, model: str, stage: str, returncode: int, audit: dict) -> None:
+    add_trace_step(
+        trace,
+        "evaluate",
+        audit.get("status", "unknown"),
+        {"model": model, "stage": stage, "returncode": returncode, "audit": audit},
+    )
+
+
+def output_paths(run_dir: Path) -> dict[str, str]:
+    return {
+        "dataset_inspection": str(run_dir / "dataset_inspection.json"),
+        "plans": str(run_dir / "plans.json"),
+        "results": str(run_dir / "results.csv"),
+        "failures": str(run_dir / "failures.json"),
+        "trace": str(run_dir / "agent_trace.json"),
+        "logs": str(run_dir / "logs"),
+        "audits": str(run_dir / "audits"),
+    }
 
 def run_and_record(command: list[str], output_dir: Path, run_dir: Path, model_name: str, stage: str, hf_home: Path, timeout: int):
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -144,7 +234,7 @@ def run_and_record(command: list[str], output_dir: Path, run_dir: Path, model_na
     return result
 
 
-def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, exc: Exception) -> None:
+def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, exc: Exception, trace: dict | None = None) -> None:
     """Preserve actionable run artifacts when evaluation cannot reach model loading."""
     error = f"{type(exc).__name__}: {exc}"
     trace = traceback.format_exc()
@@ -182,6 +272,9 @@ def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, e
         }
         for model_name in args.models
     ]
+    if trace is not None:
+        trace["outputs"] = output_paths(run_dir)
+        trace["failures"] = failures
     write_json(run_dir / "dataset_inspection.json", inspection)
     write_json(run_dir / "audits" / "dataset_inspection_audit.json", {
         "status": "bad",
@@ -190,6 +283,8 @@ def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, e
     })
     write_json(run_dir / "plans.json", [])
     write_json(run_dir / "failures.json", failures)
+    if trace is not None:
+        write_json(run_dir / "agent_trace.json", trace)
     write_csv(run_dir / "results.csv", rows)
     print(json.dumps({
         "run_dir": str(run_dir),
