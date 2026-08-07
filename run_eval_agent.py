@@ -237,10 +237,10 @@ def run_and_record(command: list[str], output_dir: Path, run_dir: Path, model_na
 def record_dataset_inspection_failure(args: argparse.Namespace, run_dir: Path, exc: Exception, trace: dict | None = None) -> None:
     """Preserve actionable run artifacts when evaluation cannot reach model loading."""
     error = f"{type(exc).__name__}: {exc}"
-    trace = traceback.format_exc()
+    traceback_text = traceback.format_exc()
     log_dir = run_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    (log_dir / "dataset_inspection.stderr.txt").write_text(trace, encoding="utf-8")
+    (log_dir / "dataset_inspection.stderr.txt").write_text(traceback_text, encoding="utf-8")
 
     inspection = {
         "dataset": args.dataset,
