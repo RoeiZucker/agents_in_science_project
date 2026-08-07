@@ -26,6 +26,11 @@ Examples:
     --dataset ImperialCollegeLondon/health_fact \
     --include-models \
     --trust-remote-code
+
+  python download_condition_datasets.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --fail-version-incompatible-datasets
 """
 from __future__ import annotations
 
@@ -42,6 +47,10 @@ from huggingface_hub import snapshot_download
 
 
 COMMON_SPLITS = ("train", "validation", "test")
+VERSION_INCOMPATIBLE_PATTERNS = (
+    "Dataset scripts are no longer supported",
+    "requires a different version of datasets",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,6 +68,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit-pairs", type=int, default=0)
     parser.add_argument("--continue-on-error", action="store_true", default=True)
     parser.add_argument("--stop-on-error", action="store_false", dest="continue_on_error")
+    parser.add_argument("--skip-version-incompatible-datasets", action="store_true", default=True)
+    parser.add_argument("--fail-version-incompatible-datasets", action="store_false", dest="skip_version_incompatible_datasets")
     return parser.parse_args()
 
 
@@ -71,7 +82,7 @@ def main() -> None:
 
     datasets = selected_datasets(args)
     dataset_results = download_all(datasets, args)
-    model_results = download_models(selected_models(args), project_root)
+    model_results = download_models(selected_models(args, dataset_results), project_root)
     results = {"datasets": dataset_results, "models": model_results}
     write_json(output_root / "dataset_downloads.json", results)
     print(json.dumps(summary(results, output_root), indent=2))
@@ -104,10 +115,15 @@ def dataset_names(args: argparse.Namespace) -> list[str]:
     return unique(names)
 
 
-def selected_models(args: argparse.Namespace) -> list[str]:
+def selected_models(args: argparse.Namespace, dataset_results: list[dict[str, Any]]) -> list[str]:
     if not args.include_models or not args.conditions_csv:
         return []
-    return unique([row["model_name"] for row in selected_rows(args)])
+    skipped = skipped_dataset_names(dataset_results)
+    return unique([row["model_name"] for row in selected_rows(args) if row["query_dataset"] not in skipped])
+
+
+def skipped_dataset_names(results: list[dict[str, Any]]) -> set[str]:
+    return {result["dataset"] for result in results if result["status"] == "skipped"}
 
 
 def selected_rows(args: argparse.Namespace) -> list[dict[str, str]]:
@@ -152,9 +168,8 @@ def download_dataset(dataset: str, args: argparse.Namespace) -> dict[str, Any]:
             ds = load_dataset(dataset, args.subset or None, split=split, trust_remote_code=args.trust_remote_code)
             result["splits"].append({"split": split, "rows": len(ds), "status": "ok"})
         except Exception as exc:
-            result["failures"].append(failure(split, exc))
-            result["status"] = "failed"
-            if not args.continue_on_error:
+            should_stop = record_dataset_failure(result, split, exc, args)
+            if should_stop or not args.continue_on_error:
                 break
     return result
 
@@ -171,6 +186,27 @@ def target_splits(dataset: str, args: argparse.Namespace) -> list[str]:
 
 def failure(split: str, exc: Exception) -> dict[str, str]:
     return {"split": split, "type": type(exc).__name__, "message": str(exc)}
+
+
+def record_dataset_failure(result: dict[str, Any], split: str, exc: Exception, args: argparse.Namespace) -> bool:
+    item = failure(split, exc)
+    if should_skip_version_incompatible(exc, args):
+        item["reason"] = "version_incompatible"
+        result["failures"].append(item)
+        result["status"] = "skipped"
+        return True
+    result["failures"].append(item)
+    result["status"] = "failed"
+    return False
+
+
+def should_skip_version_incompatible(exc: Exception, args: argparse.Namespace) -> bool:
+    return args.skip_version_incompatible_datasets and is_version_incompatible(exc)
+
+
+def is_version_incompatible(exc: Exception) -> bool:
+    message = str(exc)
+    return any(pattern in message for pattern in VERSION_INCOMPATIBLE_PATTERNS)
 
 
 def download_models(models: list[str], project_root: Path) -> list[dict[str, Any]]:
@@ -204,6 +240,7 @@ def summary(results: dict[str, list[dict[str, Any]]], output_root: Path) -> dict
         "output_root": str(output_root),
         "datasets": len(datasets),
         "downloaded_splits": sum(len(result["splits"]) for result in datasets),
+        "skipped_datasets": sum(1 for result in datasets if result["status"] == "skipped"),
         "failed_datasets": sum(1 for result in datasets if result["status"] == "failed"),
         "models": len(models),
         "downloaded_models": sum(1 for result in models if result["status"] == "ok"),

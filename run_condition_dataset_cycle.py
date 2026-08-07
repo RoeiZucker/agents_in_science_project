@@ -33,6 +33,12 @@ Examples:
     --stage full \
     --runner script \
     --trust-remote-code
+
+  python run_condition_dataset_cycle.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --dataset ImperialCollegeLondon/health_fact \
+    --fail-version-incompatible-datasets
 """
 from __future__ import annotations
 
@@ -74,6 +80,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fresh-run-dir", action="store_true")
     parser.add_argument("--keep-dataset-cache", action="store_true")
     parser.add_argument("--skip-model-download", action="store_true", help="Only predownload datasets, not model snapshots.")
+    parser.add_argument("--skip-version-incompatible-datasets", action="store_true", default=True)
+    parser.add_argument("--fail-version-incompatible-datasets", action="store_false", dest="skip_version_incompatible_datasets")
     return parser.parse_args()
 
 
@@ -139,7 +147,9 @@ def run_cycle(datasets: list[str], args: argparse.Namespace, script_dir: Path) -
 def run_dataset_cycle(dataset: str, args: argparse.Namespace, script_dir: Path) -> dict[str, Any]:
     steps = []
     steps.append(run_step("download", download_command(dataset, args, script_dir), script_dir))
-    if steps[-1]["returncode"] == 0:
+    if download_skipped(steps[-1]):
+        steps[-1]["skipped_datasets"] = reported_skips(steps[-1]["stdout_tail"])
+    elif steps[-1]["returncode"] == 0:
         steps.append(evaluate_step(evaluate_command(dataset, args, script_dir), script_dir))
     if not args.keep_dataset_cache:
         steps.append(run_step("delete", delete_command(dataset, args, script_dir), script_dir))
@@ -174,6 +184,18 @@ def reported_failures(text: str) -> int:
     return int(value.get("failures", 0))
 
 
+def download_skipped(step: dict[str, Any]) -> bool:
+    return step["returncode"] == 0 and reported_skips(step["stdout_tail"]) > 0
+
+
+def reported_skips(text: str) -> int:
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return 0
+    return int(value.get("skipped_datasets", 0))
+
+
 def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -> list[str]:
     command = [args.python, str(script_dir / "download_condition_datasets.py"), "--conditions-csv", str(args.conditions_csv), "--project-root", str(args.project_root), "--dataset", dataset]
     command.extend(download_split_args(args))
@@ -189,6 +211,8 @@ def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -
         command.extend(["--condition", condition])
     if args.continue_on_error:
         command.append("--continue-on-error")
+    if not args.skip_version_incompatible_datasets:
+        command.append("--fail-version-incompatible-datasets")
     return command
 
 
@@ -258,6 +282,8 @@ def delete_command(dataset: str, args: argparse.Namespace, script_dir: Path) -> 
 
 
 def status(steps: list[dict[str, Any]]) -> str:
+    if any(step.get("skipped_datasets", 0) for step in steps):
+        return "skipped"
     return "ok" if all(step["returncode"] == 0 for step in steps) else "failed"
 
 
@@ -280,6 +306,7 @@ def summary(args: argparse.Namespace, results: list[dict[str, Any]]) -> dict[str
     output_root = args.output_root or args.project_root / "eval_results" / "_condition_runs"
     return {
         "datasets": len(results),
+        "skipped_datasets": sum(1 for result in results if result["status"] == "skipped"),
         "failed_datasets": sum(1 for result in results if result["status"] == "failed"),
         "report": str(output_root / "dataset_cycle_report.json"),
     }
