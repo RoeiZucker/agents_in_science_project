@@ -110,6 +110,15 @@ def choose_first(columns: list[str], candidates: tuple[str, ...], default: str) 
     return default
 
 
+def load_dataset_compatible(dataset: str, subset: str | None = None, **kwargs: Any) -> Any:
+    try:
+        return load_dataset(dataset, subset, **kwargs)
+    except TypeError as exc:
+        if "trust_remote_code" not in str(exc):
+            raise
+    kwargs.pop("trust_remote_code", None)
+    return load_dataset(dataset, subset, **kwargs)
+
 
 def sanitize_model_dir(source_dir: Path, args: Any) -> Path:
     config_path = source_dir / "config.json"
