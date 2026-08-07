@@ -71,7 +71,7 @@ def main() -> None:
 
     datasets = selected_datasets(args)
     dataset_results = download_all(datasets, args)
-    model_results = download_models(selected_models(args), args)
+    model_results = download_models(selected_models(args), project_root)
     results = {"datasets": dataset_results, "models": model_results}
     write_json(output_root / "dataset_downloads.json", results)
     print(json.dumps(summary(results, output_root), indent=2))
@@ -173,16 +173,22 @@ def failure(split: str, exc: Exception) -> dict[str, str]:
     return {"split": split, "type": type(exc).__name__, "message": str(exc)}
 
 
-def download_models(models: list[str], args: argparse.Namespace) -> list[dict[str, Any]]:
-    return [download_model(model) for model in models]
+def download_models(models: list[str], project_root: Path) -> list[dict[str, Any]]:
+    return [download_model(model, project_root) for model in models]
 
 
-def download_model(model: str) -> dict[str, Any]:
+def download_model(model: str, project_root: Path) -> dict[str, Any]:
     try:
-        path = snapshot_download(repo_id=model)
+        cache_dir = model_cache_dir(project_root)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        path = snapshot_download(repo_id=model, cache_dir=str(cache_dir))
         return {"model": model, "snapshot": path, "status": "ok"}
     except Exception as exc:
         return {"model": model, "status": "failed", "type": type(exc).__name__, "message": str(exc)}
+
+
+def model_cache_dir(project_root: Path) -> Path:
+    return project_root / ".hf_cache" / "hub"
 
 
 def failed(results: dict[str, list[dict[str, Any]]]) -> bool:

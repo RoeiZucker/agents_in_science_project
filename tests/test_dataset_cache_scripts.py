@@ -4,10 +4,11 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from types import SimpleNamespace
 
 from delete_condition_datasets import cache_names, deletion_targets
-from download_condition_datasets import selected_datasets, selected_models, target_splits
+from download_condition_datasets import download_model, selected_datasets, selected_models, target_splits
 
 
 class DatasetCacheScriptTests(unittest.TestCase):
@@ -59,6 +60,22 @@ class DatasetCacheScriptTests(unittest.TestCase):
             )
 
             self.assertEqual(selected_models(args), ["model/a"])
+
+    @patch("download_condition_datasets.snapshot_download")
+    def test_download_model_uses_project_cache(self, snapshot_download) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            snapshot_path = root / ".hf_cache" / "hub" / "models--owner--model" / "snapshots" / "rev"
+            snapshot_download.return_value = str(snapshot_path)
+
+            result = download_model("owner/model", root)
+
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(result["snapshot"], str(snapshot_path))
+            snapshot_download.assert_called_once_with(
+                repo_id="owner/model",
+                cache_dir=str(root / ".hf_cache" / "hub"),
+            )
 
     def test_cache_names_cover_huggingface_dataset_cache_forms(self) -> None:
         names = cache_names("ImperialCollegeLondon/health_fact")
