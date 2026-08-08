@@ -39,6 +39,15 @@ Examples:
     --project-root runtime \
     --dataset ImperialCollegeLondon/health_fact \
     --fail-version-incompatible-datasets
+
+  python run_condition_dataset_cycle.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --dataset TimSchopf/medical_abstracts \
+    --limit-pairs 2 \
+    --stage smoke \
+    --runner codex \
+    --trust-remote-code
 """
 from __future__ import annotations
 
@@ -79,6 +88,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-refinement", action="store_true")
     parser.add_argument("--fresh-run-dir", action="store_true")
     parser.add_argument("--keep-dataset-cache", action="store_true")
+    parser.add_argument("--keep-model-cache", action="store_true")
     parser.add_argument("--skip-model-download", action="store_true", help="Only predownload datasets, not model snapshots.")
     parser.add_argument("--skip-version-incompatible-datasets", action="store_true", default=True)
     parser.add_argument("--fail-version-incompatible-datasets", action="store_false", dest="skip_version_incompatible_datasets")
@@ -276,6 +286,8 @@ def optional_eval_args(args: argparse.Namespace) -> list[str]:
 
 def delete_command(dataset: str, args: argparse.Namespace, script_dir: Path) -> list[str]:
     command = [args.python, str(script_dir / "delete_condition_datasets.py"), "--project-root", str(args.project_root), "--dataset", dataset]
+    if not args.keep_model_cache:
+        command.append("--model-cache")
     if args.output_root:
         command.extend(["--output-root", str(args.output_root / "_dataset_downloads")])
     return command

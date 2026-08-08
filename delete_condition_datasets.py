@@ -13,6 +13,10 @@ Examples:
   python delete_condition_datasets.py \
     --project-root runtime \
     --all-datasets-cache
+
+  python delete_condition_datasets.py \
+    --project-root runtime \
+    --all-models-cache
 """
 from __future__ import annotations
 
@@ -35,6 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--condition", action="append", default=[])
     parser.add_argument("--limit-datasets", type=int, default=0)
     parser.add_argument("--all-datasets-cache", action="store_true")
+    parser.add_argument("--model-cache", action="store_true", help="Also delete the Hugging Face model hub cache.")
+    parser.add_argument("--all-models-cache", action="store_true", help="Delete the Hugging Face model hub cache.")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -51,10 +57,28 @@ def main() -> None:
 
 
 def deletion_targets(project_root: Path, args: argparse.Namespace) -> list[Path]:
+    targets = []
     if args.all_datasets_cache:
-        return existing([datasets_cache(project_root), dataset_modules(project_root)])
-    names = selected_datasets(args)
-    return existing(matching_cache_paths(project_root, names))
+        targets.extend(existing([datasets_cache(project_root), dataset_modules(project_root)]))
+    elif has_dataset_selection(args):
+        targets.extend(existing(matching_cache_paths(project_root, selected_datasets(args))))
+    if args.model_cache or args.all_models_cache:
+        targets.extend(existing([model_cache(project_root)]))
+    if not targets and not has_cache_selection(args):
+        raise ValueError("No caches selected. Pass --dataset, --conditions-csv, --all-datasets-cache, or --all-models-cache.")
+    return unique_paths(targets)
+
+
+def has_dataset_selection(args: argparse.Namespace) -> bool:
+    return bool(args.dataset or args.conditions_csv)
+
+
+def has_cache_selection(args: argparse.Namespace) -> bool:
+    return bool(has_dataset_selection(args) or args.all_datasets_cache or args.model_cache or args.all_models_cache)
+
+
+def unique_paths(paths: list[Path]) -> list[Path]:
+    return list(dict.fromkeys(paths))
 
 
 def selected_datasets(args: argparse.Namespace) -> list[str]:
@@ -107,6 +131,10 @@ def datasets_cache(project_root: Path) -> Path:
 
 def dataset_modules(project_root: Path) -> Path:
     return project_root / ".hf_cache" / "modules" / "datasets_modules" / "datasets"
+
+
+def model_cache(project_root: Path) -> Path:
+    return project_root / ".hf_cache" / "hub"
 
 
 def existing(paths: list[Path]) -> list[Path]:
