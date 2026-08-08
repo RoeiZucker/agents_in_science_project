@@ -23,6 +23,14 @@ Examples:
     --trust-remote-code \
     --cleanup-cache after-dataset \
     --skip-refinement
+
+  python run_evaluation_conditions.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --dataset fancyzhx/ag_news \
+    --runner codex \
+    --codex-timeout 120 \
+    --no-codex-fallback-script
 """
 from __future__ import annotations
 
@@ -54,6 +62,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runner", choices=("script", "codex"), default="script")
     parser.add_argument("--codex-bin", default="codex")
     parser.add_argument("--codex-approval", default="never")
+    parser.add_argument("--codex-timeout", type=int, default=120, help="Seconds to wait for Codex before falling back or failing.")
+    parser.add_argument("--codex-fallback-script", action="store_true", default=True, help="Run the script runner if Codex does not produce usable results.")
+    parser.add_argument("--no-codex-fallback-script", action="store_false", dest="codex_fallback_script")
     parser.add_argument("--smoke-limit", type=int, default=3)
     parser.add_argument("--sample-size", type=int, default=20)
     parser.add_argument("--timeout", type=int, default=0)
@@ -112,6 +123,8 @@ def main() -> None:
         "failures": len(failures),
         "batch_results_csv": str(output_root / "batch_results.csv"),
     }, indent=2))
+    if failures:
+        sys.exit(1)
 
 
 def read_conditions(path: Path) -> list[dict[str, str]]:
@@ -164,11 +177,37 @@ def run_dataset_group(
     prepare_run_dir(run_dir, args.fresh_run_dir)
     candidates_path = write_candidates(run_dir, dataset, rows)
     if args.runner == "codex":
-        failures = run_codex_dataset_group(dataset, rows, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
+        failures = run_codex_with_fallback(dataset, rows, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
     else:
         failures = run_script_dataset_group(dataset, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
-    return {"results_csv": run_dir / "results.csv", "failures": failures}
+    failures.extend(expected_result_failures(rows, run_dir / "results.csv"))
+    return {"results_csv": run_dir / "results.csv", "failures": dedupe_failures(failures)}
 
+
+
+def run_codex_with_fallback(
+    dataset: str,
+    rows: list[dict[str, str]],
+    run_dir: Path,
+    candidates_path: Path,
+    args: argparse.Namespace,
+    script_dir: Path,
+    project_root: Path,
+    output_root: Path,
+    hf_home: Path,
+    datasets_cache: Path,
+) -> list[dict[str, Any]]:
+    codex_failures = run_codex_dataset_group(dataset, rows, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
+    if not should_fallback_to_script(args, rows, run_dir / "results.csv", codex_failures):
+        return codex_failures
+    write_json(run_dir / "codex_fallback.json", {"codex_failures": codex_failures})
+    return run_script_dataset_group(dataset, run_dir, candidates_path, args, script_dir, project_root, output_root, hf_home, datasets_cache)
+
+
+def should_fallback_to_script(args: argparse.Namespace, rows: list[dict[str, str]], results_csv: Path, failures: list[dict[str, Any]]) -> bool:
+    if not args.codex_fallback_script:
+        return False
+    return bool(failures or expected_result_failures(rows, results_csv))
 
 
 def prepare_run_dir(run_dir: Path, fresh: bool) -> None:
@@ -240,7 +279,7 @@ def run_codex_dataset_group(
     prompt_path = run_dir / "codex_prompt.txt"
     prompt_path.write_text(prompt, encoding="utf-8")
     command = codex_command(args, script_dir, prompt)
-    result = run_command(command, script_dir, hf_home, datasets_cache, args.timeout)
+    result = run_command(command, script_dir, hf_home, datasets_cache, args.codex_timeout)
     write_command_logs(run_dir, "codex", command_without_prompt(command), result)
     failures = command_failures(dataset, "codex", result)
     failures.extend(internal_eval_failures(run_dir))
@@ -404,7 +443,25 @@ def run_command(
     env["HF_HOME"] = str(hf_home)
     env["HF_DATASETS_CACHE"] = str(datasets_cache)
     env["TRANSFORMERS_CACHE"] = str(hf_home / "hub")
-    return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout or None, check=False)
+    try:
+        return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout or None, check=False)
+    except subprocess.TimeoutExpired as error:
+        return timeout_result(command, error)
+
+
+def timeout_result(command: list[str], error: subprocess.TimeoutExpired) -> subprocess.CompletedProcess[str]:
+    stdout = text_or_empty(error.stdout)
+    stderr = text_or_empty(error.stderr)
+    stderr = f"{stderr}\nTimed out after {error.timeout} seconds: {shell_join(command)}\n".lstrip()
+    return subprocess.CompletedProcess(command, 124, stdout, stderr)
+
+
+def text_or_empty(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
 
 
 def write_command_logs(run_dir: Path, stem: str, command: list[str], result: subprocess.CompletedProcess[str]) -> None:
@@ -430,8 +487,17 @@ def internal_eval_failures(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def missing_or_bad_result_failures(results_csv: Path) -> list[dict[str, Any]]:
+    if not results_csv.exists():
+        return [{"stage": "result_audit", "status": "missing", "notes": f"{results_csv} is missing."}]
+    rows = read_eval_rows(results_csv)
+    if not rows:
+        return [{"stage": "result_audit", "status": "empty", "notes": f"{results_csv} has no rows."}]
+    return bad_result_failures(rows)
+
+
+def bad_result_failures(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
     failures = []
-    for row in read_eval_rows(results_csv):
+    for row in rows:
         if row.get("status") in {"ok", "warn", "planned"}:
             continue
         failures.append({
@@ -442,6 +508,36 @@ def missing_or_bad_result_failures(results_csv: Path) -> list[dict[str, Any]]:
             "notes": row.get("notes"),
         })
     return failures
+
+
+def expected_result_failures(condition_rows: list[dict[str, str]], results_csv: Path) -> list[dict[str, Any]]:
+    if not results_csv.exists():
+        return [{"stage": "result_audit", "status": "missing", "notes": f"{results_csv} is missing."}]
+    eval_rows = index_eval_results(results_csv)
+    failures = []
+    for row in condition_rows:
+        if (row["query_dataset"], row["model_name"]) in eval_rows:
+            continue
+        failures.append({
+            "dataset": row["query_dataset"],
+            "model": row["model_name"],
+            "stage": "result_audit",
+            "status": "missing",
+            "notes": "Expected dataset/model pair is absent from results.csv.",
+        })
+    return failures
+
+
+def dedupe_failures(failures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen = set()
+    unique = []
+    for failure in failures:
+        key = json.dumps(failure, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(failure)
+    return unique
 
 
 def join_results(condition_rows: list[dict[str, str]], results_csv: Path) -> list[dict[str, Any]]:
