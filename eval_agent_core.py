@@ -23,8 +23,17 @@ DEFAULT_PYTHON = Path(__file__).resolve().parent / ".venv-artifact-linker" / "bi
 EVALUATOR = Path(__file__).resolve().parent / "evaluate_hf_pair.py"
 
 
-QUESTION_CANDIDATES = ("question", "prompt", "query", "instruction", "text", "claim")
-ANSWER_CANDIDATES = ("answer", "answerKey", "label", "labels", "target", "gold", "correct_answer")
+QUESTION_CANDIDATES = ("question", "prompt", "query", "instruction", "text", "claim", "medical_abstract")
+ANSWER_CANDIDATES = (
+    "answer",
+    "answerKey",
+    "label",
+    "labels",
+    "condition_label",
+    "target",
+    "gold",
+    "correct_answer",
+)
 CHOICES_CANDIDATES = ("choices", "options", "answers", "candidates")
 IMAGE_CANDIDATES = ("image", "img", "picture", "pixel_values")
 
@@ -103,10 +112,12 @@ def safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip("/"))
 
 
-def choose_first(columns: list[str], candidates: tuple[str, ...], default: str) -> str:
+def choose_first(columns: list[str], candidates: tuple[str, ...], default: str = "") -> str:
     for name in candidates:
         if name in columns:
             return name
+    if default and default in columns:
+        return default
     return default
 
 
@@ -224,7 +235,7 @@ def inspect_dataset(
     columns = list(ds.column_names)
     features = {name: type(feature).__name__ for name, feature in ds.features.items()}
 
-    q_col = question_column or choose_first(columns, QUESTION_CANDIDATES, "question")
+    q_col = question_column or choose_first(columns, QUESTION_CANDIDATES, columns[0] if columns else "question")
     a_col = answer_column or choose_answer_column(ds, columns, sample_size)
     c_col = choices_column or choose_first(columns, CHOICES_CANDIDATES, "choices")
     i_col = image_column or choose_first(columns, IMAGE_CANDIDATES, "image")

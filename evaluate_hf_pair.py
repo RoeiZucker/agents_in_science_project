@@ -344,8 +344,24 @@ def load_paligemma(args: argparse.Namespace, device: torch.device, dtype: torch.
     return model.eval(), processor
 
 
+def load_tokenizer(args: argparse.Namespace, prefer_slow: bool = False):
+    if prefer_slow:
+        return AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True, use_fast=False)
+    try:
+        return AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True)
+    except Exception as exc:
+        if not should_retry_slow_tokenizer(exc):
+            raise
+    return AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True, use_fast=False)
+
+
+def should_retry_slow_tokenizer(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc}"
+    return "SentencePiece" in text or "tiktoken" in text or "protobuf" in text
+
+
 def load_text_model(args: argparse.Namespace, model_type: str, device: torch.device, dtype: torch.dtype):
-    tokenizer = AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True)
+    tokenizer = load_tokenizer(args, prefer_slow=model_type == "seq2seq_lm")
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -361,14 +377,14 @@ def load_text_model(args: argparse.Namespace, model_type: str, device: torch.dev
 
 
 def load_sequence_classifier(args: argparse.Namespace, device: torch.device, dtype: torch.dtype):
-    tokenizer = AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True)
+    tokenizer = load_tokenizer(args)
     model_kwargs = {"torch_dtype": torch.float32 if device.type == "cpu" else dtype, "trust_remote_code": True}
     model = AutoModelForSequenceClassification.from_pretrained(model_source(args), **model_kwargs).to(device)
     return model.eval(), tokenizer
 
 
 def load_vlm_chat(args: argparse.Namespace, device: torch.device, dtype: torch.dtype):
-    tokenizer = AutoTokenizer.from_pretrained(model_source(args), trust_remote_code=True)
+    tokenizer = load_tokenizer(args)
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         tokenizer.pad_token = tokenizer.eos_token
 
