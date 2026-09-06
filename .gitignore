@@ -8,6 +8,8 @@ venv/
 
 # Hugging Face/model artifacts
 .hf_cache/
+runtime/.hf_cache/
+runtime/.hf_datasets_cache/
 models/
 eval_results/
 _agent_runs/
@@ -17,3 +19,67 @@ logs/
 *.log
 *.tmp
 
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv-*/
+
+# Python build, test, and coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Editor, OS, and backup files
+.DS_Store
+.idea/
+.vscode/
+*.orig
+*.bak
+*~
+
+# Slurm and local runtime output
+*.sbatch
+*.out
+*.err
+slurm-*.out
+/runtime/
+submit*
+
+# Generated agent and review artifacts
+/codex_context.json
+/reviews/
+
+# Generated analysis and evaluation exports at the repository root
+/all_results_pairs_*.csv
+/method_vs_claude.csv
+/method_vs_claude.md
+/oren*_partial_results*.csv
+/oren*_final_results*.csv
+/oren*_partial_ranked_pairs*.csv
+/oren*_successful_pairs*.csv
+
+
+
+#other
+*.csv
+*.swp
+*.txt
+*iterative*.json
+mock_candidates
+tests
+*.sh
+PIPELINE_HANDOFF_MAP.md
+PARTNER_INTEGRATION_GUIDE.md
+SLURM_SELECTION_LOOP.md
+ARTIFACT_LINKER_PROVIDER.md
+DEVELOPMENT.md
+*EVALUATION_COVERAGE*
+EVALUATION_METHODS.md
+OREN_CACHED_18_RUN.md
+OREN_LOCAL_RETRIEVAL.md
