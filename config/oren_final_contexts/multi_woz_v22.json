@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "tuetschek/multi_woz_v22",
+  "dataset_context": {
+    "subset": "default",
+    "split": "test",
+    "question_column": "turns.utterance",
+    "context_column": "",
+    "answer_column": "turns.frames.state.active_intent",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "multilabel_classification",
+    "evaluation_method": "set_f1",
+    "label_map": {"NONE": "NONE", "find_attraction": "find_attraction", "find_bus": "find_bus", "find_hospital": "find_hospital", "find_hotel": "find_hotel", "find_police": "find_police", "find_restaurant": "find_restaurant", "find_taxi": "find_taxi", "find_train": "find_train", "book_hotel": "book_hotel", "book_restaurant": "book_restaurant", "book_train": "book_train"},
+    "prompt_template": "Identify every active user intent expressed in the dialogue. Ignore assistant actions and conversational wording.\nDialogue:\n{turns.utterance}",
+    "notes": "Scores the set of active user intents in each held-out test dialogue using the validated local MultiWOZ contract."
+  },
+  "model_context": {"notes": "Models must produce or score the fixed active-intent set."},
+  "confidence": "high"
+}

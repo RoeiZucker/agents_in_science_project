@@ -1,0 +1,22 @@
+{
+  "context_version": 1,
+  "dataset": "theatticusproject/cuad",
+  "dataset_context": {
+    "dataset_source": "chenghao/cuad_qa",
+    "subset": "",
+    "split": "train",
+    "question_column": "question",
+    "context_column": "context",
+    "answer_column": "answers.text",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "qa",
+    "evaluation_method": "qa_f1",
+    "label_map": {},
+    "prompt_template": "Answer the contract question from the supplied contract text.\nContract: {context}\nQuestion: {question}",
+    "notes": "The canonical repository contains PDFs only. The data-equivalent chenghao/cuad_qa mirror supplies SQuAD-style context, question, and answer spans and has a train split only."
+  },
+  "model_context": {"notes": "Extractive QA checkpoints and generative QA models are comparable under token F1."},
+  "confidence": "high"
+}

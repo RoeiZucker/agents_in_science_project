@@ -1,0 +1,55 @@
+{
+  "manifest_version": 1,
+  "purpose": "Recover two incomplete rankings and retest two numeric-QA rankings with a larger generation budget.",
+  "provider_defaults": {
+    "command": "oren_local_provider.py",
+    "artifact_linker_root": "external/artifact-linker",
+    "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+    "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+    "max_candidates": 10,
+    "max_params_b": 14,
+    "method1_top_k": 50,
+    "models_per_neighbor": 30,
+    "method2_rank_pool": 1000,
+    "method2_context_top_k": 50,
+    "max_evidence": 10,
+    "codex_bin": "/usr/local/bin/codex",
+    "codex_timeout": 300
+  },
+  "datasets": [
+    {
+      "dataset": "microsoft/orca-math-word-problems-200k",
+      "split": "train",
+      "evaluation_context": "config/oren_final_contexts/orca_math.json",
+      "rounds": [
+        {
+          "round": 1,
+          "candidates": "/sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/oren_preflight_snapshot_20260904/candidate_handoffs/microsoft_orca-math-word-problems-200k.json"
+        }
+      ]
+    },
+    {
+      "dataset": "nlpaueb/finer-139",
+      "split": "test",
+      "evaluation_context": "config/oren_final_contexts/finer_139.json",
+      "provider": {}
+    },
+    {
+      "dataset": "ucirvine/reuters21578",
+      "split": "test",
+      "evaluation_context": "config/oren_final_contexts/reuters21578.json",
+      "provider": {}
+    },
+    {
+      "dataset": "virattt/financial-qa-10K",
+      "split": "train",
+      "evaluation_context": "config/oren_final_contexts/financial_qa_10k.json",
+      "rounds": [
+        {
+          "round": 1,
+          "candidates": "/sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/oren_preflight_snapshot_20260904/candidate_handoffs/virattt_financial-qa-10K.json"
+        }
+      ]
+    }
+  ]
+}

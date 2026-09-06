@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "nyu-mll/multi_nli",
+  "dataset_context": {
+    "subset": "default",
+    "split": "validation_matched",
+    "question_column": "hypothesis",
+    "context_column": "premise",
+    "answer_column": "label",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "accuracy",
+    "label_map": {"0": "entailment", "1": "neutral", "2": "contradiction"},
+    "prompt_template": "Premise: {premise}\nHypothesis: {hypothesis}\nClassify the relationship as entailment, neutral, or contradiction.",
+    "notes": "Uses the labeled matched validation split and the dataset's declared three-way NLI labels."
+  },
+  "model_context": {"notes": "NLI classifiers use direct/zero-shot scoring; generative models use constrained label generation."},
+  "confidence": "high"
+}

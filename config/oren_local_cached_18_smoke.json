@@ -1,0 +1,348 @@
+{
+  "manifest_version": 1,
+  "purpose": "Five ranked evaluated models for 18 datasets with Oren's committed descriptions and Voyage embeddings.",
+  "datasets": [
+    {
+      "dataset": "li2017dailydialog/daily_dialog",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "microsoft/orca-math-word-problems-200k",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "midas/duc2001",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "nlpaueb/finer-139",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "nyu-mll/multi_nli",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "odegiber/hate_speech18",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "pkavumba/balanced-copa",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "raquiba/Sarcasm_News_Headline",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "sentence-transformers/eli5",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "sileod/movie_recommendation",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "tals/vitaminc",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "tdiggelm/climate_fever",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "theatticusproject/cuad",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "tuetschek/multi_woz_v22",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "ucberkeley-dlab/measuring-hate-speech",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "ucirvine/reuters21578",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "virattt/financial-qa-10K",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    },
+    {
+      "dataset": "wics/strategy-qa",
+      "split": "auto",
+        "provider": {
+          "command": "oren_local_provider.py",
+          "artifact_linker_root": "external/artifact-linker",
+          "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+          "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+          "max_candidates": 5,
+          "max_params_b": 14,
+          "method1_top_k": 10,
+          "models_per_neighbor": 15,
+          "method2_rank_pool": 500,
+          "method2_context_top_k": 15,
+          "max_evidence": 5,
+          "codex_bin": "/usr/local/bin/codex",
+          "codex_timeout": 300
+        }
+    }
+  ]
+}

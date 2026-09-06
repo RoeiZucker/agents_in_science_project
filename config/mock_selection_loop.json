@@ -1,0 +1,26 @@
+{
+  "manifest_version": 1,
+  "purpose": "Mock partner handoffs for wiring the user-owned evaluation and selection loop.",
+  "datasets": [
+    {
+      "dataset": "fancyzhx/ag_news",
+      "split": "auto",
+      "rounds": [
+        {
+          "round": 1,
+          "candidates": "mock_candidates/ag_news_round1.json"
+        }
+      ]
+    },
+    {
+      "dataset": "stanfordnlp/imdb",
+      "split": "auto",
+      "rounds": [
+        {
+          "round": 1,
+          "candidates": "mock_candidates/imdb_round1.json"
+        }
+      ]
+    }
+  ]
+}

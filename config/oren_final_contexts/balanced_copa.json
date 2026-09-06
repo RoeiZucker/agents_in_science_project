@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "pkavumba/balanced-copa",
+  "dataset_context": {
+    "subset": "default",
+    "split": "test",
+    "question_column": "question",
+    "context_column": "premise",
+    "answer_column": "label",
+    "choices_column": "",
+    "choices_columns": ["choice1", "choice2"],
+    "image_column": "",
+    "task": "multiple_choice",
+    "evaluation_method": "accuracy",
+    "label_map": {"0": "A", "1": "B"},
+    "prompt_template": "Premise: {premise}\nSelect the most plausible {question} of the premise.",
+    "notes": "COPA labels are zero-based choice indices: 0 maps to choice1/A and 1 maps to choice2/B. The prompt includes both the premise and causal direction."
+  },
+  "model_context": {"notes": "Generative models use constrained A/B output; supported scoring models may score both choices directly."},
+  "confidence": "high"
+}

@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "odegiber/hate_speech18",
+  "dataset_context": {
+    "subset": "default",
+    "split": "train",
+    "question_column": "text",
+    "context_column": "",
+    "answer_column": "label",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "macro_f1",
+    "label_map": {"0": "noHate", "1": "hate", "2": "idk/skip", "3": "relation"},
+    "prompt_template": "Classify this forum post as exactly one of: noHate, hate, idk/skip, relation.\nPost: {text}",
+    "notes": "The dataset is train-only and is evaluated zero-shot. Macro F1 prevents the majority class from dominating the comparison."
+  },
+  "model_context": {"notes": "Models must support four-way text classification or constrained label generation."},
+  "confidence": "high"
+}

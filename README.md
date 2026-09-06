@@ -1,335 +1,198 @@
-# Evaluation Agent
+# Hugging Face Evaluation And Selection Loop
 
-This project now has a small evaluation agent around `evaluate_hf_pair.py`.
-It inspects a Hugging Face dataset and one or more models, chooses evaluator
-arguments, runs smoke tests, audits outputs, and writes CSV/JSON summaries.
+This repository evaluates partner-recommended Hugging Face models and uses the measured outputs to choose the best valid model for each dataset. The runtime loop is candidate handoff -> metadata context -> deterministic evaluation -> error/refinement feedback -> optional later candidate round -> measured winner. Full pipeline runs are deliberately restricted to a dataset allowlist; report and analysis scripts can still inspect any existing run.
 
-## Files
+## Ownership
 
-- `run_eval_agent.py` - main orchestrator.
-- `run_evaluation_conditions.py` - batch runner for partner-provided dataset/model CSVs.
-- `download_condition_datasets.py` - pre-downloads condition datasets into the same Hugging Face cache used by the batch runner.
-- `delete_condition_datasets.py` - deletes warmed dataset caches after evaluation.
-- `run_condition_dataset_cycle.py` - loops through selected datasets as download -> evaluate -> delete.
-- `eval_agent_core.py` - shared planning, inspection, command, and audit helpers.
-- `inspect_hf_dataset.py` - prints dataset schema/split/task inspection JSON.
-- `inspect_hf_model.py` - prints model config/capability inspection JSON.
-- `audit_eval_results.py` - audits an existing `summary.json`/`predictions.jsonl`.
-- `analyze_eval_errors.py` - refinement agent step that summarizes failures.
-- `make_retrieval_feedback.py` - writes the next retrieval-agent feedback request.
-- `refinement_agent_core.py` - shared refinement/error-analysis helpers.
-- `mock_candidates/*.json` - mocked retrieval-agent candidate outputs.
-- `tests/test_eval_agent_core.py` - offline unit tests for planning/audit helpers.
-- `tests/test_refinement_agent_core.py` - offline unit tests for refinement helpers.
+This repository owns:
 
-## Typical Usage
+- dataset/model inspection and evaluation protocols;
+- smoke/full execution, auditing, failure semantics, and reports;
+- refinement feedback and the multi-round loop controller;
+- selection of the highest valid measured score;
+- runtime context-scout and development-review agent descriptions.
 
-Plan only, with no model loading:
+The partner owns candidate retrieval/model recommendation from new context. Oren's implementation is included as the pinned `external/artifact-linker` submodule; this repository owns the provider integration. Files under `mock_candidates/` are static contract examples with `mock: true`.
 
-```bash
-HF_HOME=/sci/labs/michall/roeizucker/agents_project/.hf_cache \
-./.venv-artifact-linker/bin/python run_eval_agent.py \
-  --dataset tau/commonsense_qa \
-  --models TinyLlama/TinyLlama-1.1B-Chat-v0.1 google/flan-t5-xl \
-  --split auto \
-  --stage plan \
-  --project-root /sci/labs/michall/roeizucker/agents_project
-```
+## Architecture
 
-Run smoke tests only:
+1. `run_selection_loop.py` reads candidate handoffs listed in a manifest.
+2. With `--runner codex`, Codex only inspects cards/metadata and writes `codex_context.json`. It may choose a validated task and evaluation method, but it never runs a model.
+3. `run_evaluation_conditions.py` and `run_eval_agent.py` run the deterministic evaluator. Generative models use `<answer>...</answer>` by default; direct label scores require the explicit `--allow-label-scores` opt-in.
+4. `analyze_eval_errors.py` and `make_retrieval_feedback.py` produce feedback for a later partner retrieval round.
+5. The loop selects a winner only from rows with `status=ok`, a finite score, and at least one labeled example.
 
-```bash
-HF_HOME=/sci/labs/michall/roeizucker/agents_project/.hf_cache \
-./.venv-artifact-linker/bin/python run_eval_agent.py \
-  --dataset tau/commonsense_qa \
-  --models TinyLlama/TinyLlama-1.1B-Chat-v0.1 \
-  --split auto \
-  --stage smoke \
-  --smoke-limit 3 \
-  --project-root /sci/labs/michall/roeizucker/agents_project
-```
+For direct conditions-CSV evaluation, `--runner manual --context-file ...` supplies
+the validated context explicitly and does not launch Codex.
 
-Run smoke test and then full evaluation:
+Unsupported, missing, unlabeled, warning-only, or non-finite rows are failures, not scores.
+
+## Important Files
+
+- `run_selection_loop.py`: larger multi-round loop and measured winner selection.
+- `config/mock_selection_loop.json`: two-dataset mock loop manifest.
+- `config/full_pipeline_datasets.txt`: full-run dataset allowlist.
+- `run_condition_dataset_cycle.py`: legacy conditions-CSV download/evaluate/delete cycle.
+- `run_evaluation_conditions.py`: evaluates one conditions CSV in dataset groups.
+- `run_eval_agent.py`: plans, smoke-tests, fully evaluates, and audits model pairs.
+- `evaluate_hf_pair.py`: deterministic model/dataset evaluator.
+- `EVALUATION_METHODS.md`: Context Scout freedom, registered scoring methods, and adapter boundaries.
+- `EVALUATION_COVERAGE_AUDIT.md`: readable review of 40 pairs across 20 datasets.
+- `config/evaluation_coverage_40.csv`: machine-readable form of the coverage review.
+- `build_evaluation_coverage_audit.py`: reproducibly rebuilds both audit files.
+- `result_contract.py`: shared success/failure rules.
+- `create_condition_run_report.py`: Markdown and CSV report generator.
+- `retry_failed_condition_pairs.py`: pair-level retry runner and CSV/JSON output.
+- `agents/`: development-review roles and runtime-agent boundaries.
+
+## Setup
+
+Clone with the pinned Oren retrieval repository:
 
 ```bash
-HF_HOME=/sci/labs/michall/roeizucker/agents_project/.hf_cache \
-./.venv-artifact-linker/bin/python run_eval_agent.py \
-  --dataset xai-org/RealworldQA \
-  --models OpenGVLab/InternVL3_5-2B ZTE-AIM/3B-Curr-ReFT \
-  --split test \
-  --stage full \
-  --smoke-limit 3 \
-  --project-root /sci/labs/michall/roeizucker/agents_project \
-  --continue-on-error
+git clone --recurse-submodules https://github.com/RoeiZucker/agents_in_science_project.git
 ```
 
-## Outputs
-
-Each run writes a run directory under:
-
-```text
-<output-root>/<dataset>_<split>/
-```
-
-The default `output-root` is:
-
-```text
-/sci/labs/michall/roeizucker/agents_project/eval_results/_agent_runs
-```
-
-Important files:
-
-- `dataset_inspection.json` - detected split/schema/task/columns.
-- `plans.json` - exact smoke/full evaluator commands for each model.
-- `results.csv` - compact table: dataset, split, model, score, status, notes.
-- `failures.json` - failed model stages, if any.
-- `logs/*.command.txt` - exact command that was run.
-- `logs/*.stdout.txt` and `logs/*.stderr.txt` - child process logs.
-- `audits/*_audit.json` - audit results for smoke/full outputs.
-- `error_analysis.json` - per-model failure modes and cross-model comparisons.
-- `retrieval_feedback.json` - structured feedback for the next retrieval round.
-- `retrieval_feedback_prompt.txt` - prompt-style handoff to the retrieval agent.
-
-Model outputs are written under:
-
-```text
-<output-root>/eval_results/<model>/<dataset>_<split>/
-```
-
-Smoke outputs are written under:
-
-```text
-<output-root>/eval_results/_smoke/<model>/<dataset>_<split>/
-```
-
-## Built-In Decisions
-
-The agent currently:
-
-- Auto-selects a labeled split when `--split auto` is used.
-- Detects multiple-choice datasets from `choices`/`options` columns.
-- Detects common answer columns like `answer` and `answerKey`.
-- Detects image columns and vision-language model families.
-- Uses `answer_text` scoring with length normalization for causal LMs on
-  multiple-choice tasks to reduce label-token bias.
-- Uses eager attention for known VLM compatibility paths.
-- Detects Qwen2.5-VL-style `use_cache: null` configs and lets the evaluator
-  create sanitized local snapshots.
-- Audits missing labels, blank predictions, and degenerate prediction
-  distributions.
-
-## Tests
-
-Offline unit tests:
+For an existing clone, initialize it once with:
 
 ```bash
-./.venv-artifact-linker/bin/python -m unittest tests.test_eval_agent_core -v
-./.venv-artifact-linker/bin/python -m unittest tests.test_refinement_agent_core -v
-./.venv-artifact-linker/bin/python -m unittest tests.test_run_evaluation_conditions -v
+git submodule update --init --recursive
 ```
 
-Syntax checks:
+The submodule tracks Oren's source plus committed descriptions and embeddings. The large ArtifactBench graph and trained GNN checkpoint remain external runtime assets; follow `external/artifact-linker/retrieval_agent/method2_gnn_inference/README_INSTRUCTIONS.txt` when setting up a new machine.
+
+From the repository after activating the project environment:
 
 ```bash
-python3 -m py_compile \
-  evaluate_hf_pair.py \
-  eval_agent_core.py \
-  inspect_hf_dataset.py \
-  inspect_hf_model.py \
-  audit_eval_results.py \
-  analyze_eval_errors.py \
-  make_retrieval_feedback.py \
-  refinement_agent_core.py \
-  run_eval_agent.py \
-  run_evaluation_conditions.py \
-  tests/test_eval_agent_core.py \
-  tests/test_refinement_agent_core.py \
-  tests/test_run_evaluation_conditions.py
+cd /sci/nosnap/michall/roeizucker/jupyter_notebooks/Tom_Hope_Project/agents_project/hf-eval-agent
+python -m unittest discover -s tests -v
 ```
 
-
-## Running Through Codex Non-Interactively
-
-Codex can receive the task prompt directly from the terminal. To generate a
-no-follow-up prompt:
+The standard adapters need only `requirements.txt`. Text-only GGUF checkpoints use
+the optional llama.cpp backend:
 
 ```bash
-python make_codex_prompt.py \
-  --dataset google/boolq \
-  --models google/flan-t5-small google/flan-t5-base \
-  --split validation \
-  --stage full \
-  --output-file codex_prompt.txt
+pip install -r requirements-gguf.txt
 ```
 
-Then run Codex non-interactively:
+For a CUDA-enabled build on the cluster:
 
 ```bash
-codex -C "$PWD" -a never exec "$(cat codex_prompt.txt)"
+CMAKE_ARGS="-DGGML_CUDA=on" pip install --upgrade --force-reinstall -r requirements-gguf.txt
 ```
 
-You can also pass the generated prompt directly:
+GGUF repositories are detected automatically. The evaluator prefers Q4_K_M and
+downloads every shard when that quantization is split. Use `--gguf-file` to select
+a different file. Repositories containing `mmproj` or projector GGUF files are
+rejected because this adapter is text-only.
 
 ```bash
-codex -C "$PWD" -a never exec "$(
-  python make_codex_prompt.py \
-    --dataset google/boolq \
-    --models google/flan-t5-small google/flan-t5-base \
-    --split validation \
-    --stage full
-)"
+python evaluate_hf_pair.py \
+  --dataset ImperialCollegeLondon/health_fact \
+  --model bartowski/Qwen2.5-7B-Instruct-GGUF \
+  --model-type gguf \
+  --gguf-file Qwen2.5-7B-Instruct-Q4_K_M.gguf \
+  --task classification --split validation \
+  --question-column claim --answer-column label \
+  --label-map '{"0":"false","1":"mixture","2":"true","3":"unproven"}' \
+  --evaluation-protocol tagged_label_generation_accuracy \
+  --evaluation-method accuracy \
+  --output-dir eval_results/qwen_gguf_health_fact \
+  --limit 3
 ```
 
-The prompt explicitly instructs Codex not to ask follow-up questions and to use
-the local `plan -> smoke -> full` workflow.
+## Safe Wiring Check
 
-
-## Batch Conditions CSV
-
-To evaluate every pair from a partner-provided CSV, use
-`run_evaluation_conditions.py`. It groups rows by `query_dataset`, evaluates the
-unique models for each dataset, writes joined results, runs refinement by
-default, and can delete downloaded Hugging Face caches after each dataset.
-
-Pre-download datasets outside nested Codex when dataset loading needs external
-hosts such as Google Drive:
+This validates the two-dataset mock loop without loading model weights:
 
 ```bash
-python download_condition_datasets.py \
-  --conditions-csv ../evaluation_conditions.csv \
-  --project-root runtime \
-  --trust-remote-code
+python run_selection_loop.py   --manifest config/mock_selection_loop.json   --dataset-subset-file config/full_pipeline_datasets.txt   --stage plan   --runner script   --project-root /sci/labs/michall/roeizucker/hf_eval_runtime
 ```
 
-Run the Codex-backed evaluation against the same `runtime/.hf_cache` and
-`runtime/.hf_datasets_cache` directories:
+Plan mode validates the partner handoff and writes a `planned` selected row for
+each dataset. It does not claim a measured winner or count the dataset as failed.
+
+## Full Subset Run
+
+A full selection-loop run requires `--dataset-subset-file`; the command fails without it. Codex is the metadata-only context scout, then Python performs evaluation.
 
 ```bash
-python run_evaluation_conditions.py \
-  --conditions-csv ../evaluation_conditions.csv \
-  --project-root runtime \
-  --stage full \
-  --runner codex \
-  --trust-remote-code \
-  --fresh-run-dir \
-  --cleanup-cache after-dataset
+python run_selection_loop.py   --manifest config/mock_selection_loop.json   --dataset-subset-file config/full_pipeline_datasets.txt   --stage full   --runner codex   --codex-bypass-sandbox   --trust-remote-code   --project-root /sci/labs/michall/roeizucker/hf_eval_runtime   --output-root /sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/_selection_loop_full
 ```
 
-Delete warmed dataset caches later:
+The loop keeps Hugging Face caches. That avoids repeat downloads while the pipeline is stabilizing.
+
+## Full Conditions-CSV Cycle
+
+Use this older entrypoint when the partner provides `evaluation_conditions.csv`.
+Full runs require `--dataset-subset-file`; plan and smoke runs may omit it.
 
 ```bash
-python delete_condition_datasets.py \
-  --conditions-csv ../evaluation_conditions.csv \
-  --project-root runtime
+python run_condition_dataset_cycle.py   --conditions-csv ../evaluation_conditions.csv   --dataset-subset-file config/full_pipeline_datasets.txt   --project-root /sci/labs/michall/roeizucker/hf_eval_runtime   --output-root /sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/_condition_runs_subset   --stage full   --runner codex   --codex-bypass-sandbox   --trust-remote-code   --keep-dataset-cache   --keep-model-cache   --fresh-run-dir
 ```
 
-For the lowest network/cache risk, run the full flow one dataset at a time:
+Remove the two `--keep-*-cache` flags only when deletion is intentionally reintroduced.
+
+## Manual Evaluation Context
+
+Use manual mode when you want to provide the dataset columns, label meanings, task,
+and `prompt_template` yourself instead of asking the Codex Context Scout. The JSON
+must follow the exact schema in `agents/pipeline/context-scout.md`; its `dataset`
+and ordered `models` list must exactly match the selected rows. One context file is
+limited to one selected dataset.
 
 ```bash
 python run_condition_dataset_cycle.py \
   --conditions-csv ../evaluation_conditions.csv \
-  --project-root runtime \
+  --project-root /sci/labs/michall/roeizucker/hf_eval_runtime \
+  --output-root /sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/_manual_context_run \
+  --dataset ImperialCollegeLondon/health_fact \
+  --limit-pairs 2 \
   --stage smoke \
-  --runner codex \
+  --runner manual \
+  --context-file /path/to/health_fact_context.json \
   --trust-remote-code \
+  --keep-dataset-cache \
+  --keep-model-cache \
   --fresh-run-dir
 ```
 
-That cycle runs `download_condition_datasets.py --dataset ...`, then
-`run_evaluation_conditions.py --dataset ... --cleanup-cache none`, then
-`delete_condition_datasets.py --dataset ...` before moving to the next dataset.
+The run preserves the validated input as `manual_context.json`, records its source
+path in `manual_context_source.json`, and reports `context_source=manual` in
+`batch_contexts.json`. A manual `prompt_template` only affects evaluator protocols
+that render that template; it does not alter a model-specific protocol such as the
+current zero-shot NLI scoring path.
 
-Useful smoke-test command before a long run:
+## Outputs
 
-```bash
-python run_evaluation_conditions.py \
-  --conditions-csv ../evaluation_conditions.csv \
-  --project-root runtime \
-  --stage smoke \
-  --limit-datasets 1 \
-  --runner codex \
-  --trust-remote-code \
-  --fresh-run-dir \
-  --cleanup-cache after-dataset
-```
+`run_selection_loop.py` writes:
 
-Some Hugging Face datasets, including `ImperialCollegeLondon/health_fact`, require `--trust-remote-code` because they use a dataset loading script. Only use this for dataset repositories you trust.
+- `selection_loop_results.csv`: every candidate attempt with complete handoff provenance, protocol, score, and outcome;
+- `selected_models.csv`: one measured winner, planned candidate, or explicit failure row per selected dataset, retaining complete handoff provenance;
+- `selection_loop_summary.json`: aggregate counts;
+- `<dataset>/round_<n>/conditions.csv`: partner handoff adapted to the evaluator contract;
+- `<dataset>/round_<n>/evaluation/<dataset>_<split>/`: context, plans, results, audits, logs, error analysis, and retrieval feedback.
 
-When `--runner codex` is used, the batch runner creates one Codex prompt per
-dataset group, saves it as `<dataset>_<split>/codex_prompt.txt`, and invokes:
+Candidate handoffs are rejected unless all documented fields are present, candidate IDs are unique and non-empty, model IDs are non-empty, and dataset/split/round agree with the manifest. The evaluator currently supports only `intended_use=direct_inference`; fine-tuning and other use modes fail validation before evaluation.
 
-```bash
-codex -C <repo> -a never exec <prompt>
-```
+`run_evaluation_conditions.py` writes `batch_results.csv`, `batch_failures.json`, and per-dataset run directories. `run_eval_agent.py` writes `results.csv`, `plans.json`, `failures.json`, `agent_trace.json`, audits, summaries, predictions, and command logs.
 
-Codex then runs the evaluation scripts, inspects logs/results, can make small
-evaluator fixes if needed, and produces the same output files. Use `--runner
-script` to bypass Codex and run the deterministic Python-only path.
+## Reports And Analysis
 
-Use `--fresh-run-dir` for reruns or small subsets, so old per-dataset outputs do not get counted as current failures.
-
-Batch outputs are written under:
-
-```text
-<project-root>/eval_results/_condition_runs/
-```
-
-Important batch files:
-
-- `batch_results.csv` - original CSV rows joined with measured eval score/status.
-- `batch_failures.json` - failed dataset-level commands.
-- `<dataset>_<split>/candidate_models_from_conditions.json` - retrieval metadata from the CSV.
-- `<dataset>_<split>/results.csv` - evaluation-agent scores for unique models.
-- `<dataset>_<split>/error_analysis.json` - refinement analysis, unless `--skip-refinement` is used.
-- `<dataset>_<split>/retrieval_feedback.json` - next retrieval request, unless `--skip-refinement` is used.
-
-Cleanup only removes downloaded cache directories:
-
-```text
-<project-root>/.hf_cache/hub
-<project-root>/.hf_cache/transformers
-<project-root>/.hf_datasets_cache
-```
-
-It does not delete `eval_results`. Use `--cleanup-cache none` to keep models and
-datasets cached between groups, or `--cleanup-cache end` to delete them only once
-after the whole batch finishes.
-
-## Refinement Agent
-
-After an evaluation run finishes, the refinement agent analyzes errors and
-prepares feedback for the next retrieval round. The retrieval agent can be
-mocked with files under `mock_candidates/` until the real retrieval component is
-connected.
-
-Analyze an existing run:
+Analysis is not restricted by the full-run dataset allowlist.
 
 ```bash
-python analyze_eval_errors.py \
-  --run-dir runtime/eval_results/_agent_runs/google_boolq_validation \
-  --candidate-models mock_candidates/boolq_round1.json
+python create_condition_run_report.py   --run-root /path/to/condition_run   --output /path/to/condition_run/condition_run_report.md   --csv-output /path/to/condition_run/condition_run_report.csv
 ```
 
-Create retrieval feedback from that analysis:
+Retry failed pairs and automatically write `retry_failed_summary.json` plus `retry_failed_results.csv`:
 
 ```bash
-python make_retrieval_feedback.py \
-  --error-analysis runtime/eval_results/_agent_runs/google_boolq_validation/error_analysis.json \
-  --next-round 2
+python retry_failed_condition_pairs.py   --report-csv /path/to/condition_run/condition_run_report.csv   --source-run-root /path/to/condition_run   --project-root /sci/labs/michall/roeizucker/hf_eval_runtime   --output-root /sci/labs/michall/roeizucker/hf_eval_runtime/eval_results/_retry   --stage smoke
 ```
 
-The expected retrieval-agent handoff format is:
+## Agent Files
 
-```json
-{
-  "candidates": [
-    {
-      "model": "google/flan-t5-base",
-      "rank": 1,
-      "score": 0.87,
-      "source": "retrieval_agent",
-      "reason": "Why this model should fit the dataset/task."
-    }
-  ]
-}
-```
+`agents/developer.md`, `agents/partner-reviewer.md`, and `agents/professor-reviewer.md` define the strict development review sequence. `agents/pipeline/` documents the runtime context-scout and partner retrieval boundary. These Markdown files are prompts/descriptions only; this repository does not automatically execute the development reviewers.
+
+See `agents/README.md` for the approval gates and `DEVELOPMENT.md` for verification commands.

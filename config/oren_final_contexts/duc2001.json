@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "midas/duc2001",
+  "dataset_context": {
+    "subset": "generation",
+    "split": "test",
+    "question_column": "document",
+    "context_column": "",
+    "answer_column": "abstractive_keyphrases",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "multilabel_classification",
+    "evaluation_method": "set_f1",
+    "label_map": {},
+    "prompt_template": "Generate the document's abstractive keyphrases as a JSON array of short strings.\nDocument:\n{document}",
+    "notes": "MIDAS DUC2001 is a keyphrase-generation dataset, not a document summarization dataset. Evaluation uses the generation config and example-level set F1 over abstractive keyphrases."
+  },
+  "model_context": {"notes": "Only models capable of free-form keyphrase-set generation are directly comparable."},
+  "confidence": "high"
+}

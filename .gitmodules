@@ -1,0 +1,4 @@
+[submodule "external/artifact-linker"]
+	path = external/artifact-linker
+	url = https://github.com/orensul/artifact-linker.git
+	branch = oren-retrieval

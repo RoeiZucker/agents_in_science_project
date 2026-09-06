@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "tdiggelm/climate_fever",
+  "dataset_context": {
+    "subset": "default",
+    "split": "test",
+    "question_column": "claim",
+    "context_column": "evidences.evidence",
+    "answer_column": "claim_label",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "accuracy",
+    "label_map": {"0": "SUPPORTS", "1": "REFUTES", "2": "NOT_ENOUGH_INFO", "3": "DISPUTED"},
+    "prompt_template": "Evidence passages:\n{evidences.evidence}\nClaim: {claim}\nClassify the claim as SUPPORTS, REFUTES, NOT_ENOUGH_INFO, or DISPUTED.",
+    "notes": "Uses the declared four-way claim label and includes all supplied evidence passages."
+  },
+  "model_context": {"notes": "Four-way fact-verification classifiers and constrained generative models are comparable."},
+  "confidence": "high"
+}

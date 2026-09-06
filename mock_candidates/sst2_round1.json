@@ -1,22 +1,31 @@
 {
+  "handoff_version": 1,
+  "mock": true,
+  "owner": "partner_retrieval",
+  "retrieval_agent": "mock_only_no_selection_logic",
   "dataset": "SetFit/sst2",
   "split": "validation",
   "round": 1,
-  "retrieval_agent": "mock",
   "candidates": [
     {
+      "candidate_id": "sst2-A-1",
+      "condition": "mock_A",
       "model": "google/flan-t5-small",
       "rank": 1,
       "score": 0.76,
       "source": "mock_retrieval",
-      "reason": "Instruction-tuned model that can produce positive/negative labels from text prompts."
+      "intended_use": "direct_inference",
+      "reason": "Static example of a partner-retrieved label-generation candidate."
     },
     {
+      "candidate_id": "sst2-A-2",
+      "condition": "mock_A",
       "model": "google/flan-t5-base",
       "rank": 2,
       "score": 0.74,
       "source": "mock_retrieval",
-      "reason": "Larger FLAN variant with stronger text classification behavior."
+      "intended_use": "direct_inference",
+      "reason": "Static example only; no retrieval algorithm is implemented here."
     }
   ]
 }

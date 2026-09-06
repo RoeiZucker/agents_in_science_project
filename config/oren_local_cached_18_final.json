@@ -1,0 +1,39 @@
+{
+  "manifest_version": 1,
+  "purpose": "Protocol-pinned preflight selection for five comparable models per dataset before a frozen full comparison.",
+  "provider_defaults": {
+    "command": "oren_local_provider.py",
+    "artifact_linker_root": "external/artifact-linker",
+    "precomputed_cache_root": "external/artifact-linker/data/advisor_runs_initial_run_max14b",
+    "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+    "max_candidates": 5,
+    "max_params_b": 14,
+    "method1_top_k": 10,
+    "models_per_neighbor": 15,
+    "method2_rank_pool": 500,
+    "method2_context_top_k": 15,
+    "max_evidence": 5,
+    "codex_bin": "/usr/local/bin/codex",
+    "codex_timeout": 300
+  },
+  "datasets": [
+    {"dataset":"li2017dailydialog/daily_dialog","split":"validation","evaluation_context":"config/oren_final_contexts/daily_dialog.json","provider":{}},
+    {"dataset":"microsoft/orca-math-word-problems-200k","split":"train","evaluation_context":"config/oren_final_contexts/orca_math.json","provider":{}},
+    {"dataset":"midas/duc2001","split":"test","evaluation_context":"config/oren_final_contexts/duc2001.json","provider":{}},
+    {"dataset":"nlpaueb/finer-139","split":"test","evaluation_context":"config/oren_final_contexts/finer_139.json","provider":{}},
+    {"dataset":"nyu-mll/multi_nli","split":"validation_matched","evaluation_context":"config/oren_final_contexts/multi_nli.json","provider":{}},
+    {"dataset":"odegiber/hate_speech18","split":"train","evaluation_context":"config/oren_final_contexts/hate_speech18.json","provider":{}},
+    {"dataset":"pkavumba/balanced-copa","split":"test","evaluation_context":"config/oren_final_contexts/balanced_copa.json","provider":{}},
+    {"dataset":"raquiba/Sarcasm_News_Headline","split":"test","evaluation_context":"config/oren_final_contexts/sarcasm_news.json","provider":{}},
+    {"dataset":"sentence-transformers/eli5","split":"train","evaluation_context":"config/oren_final_contexts/eli5.json","provider":{}},
+    {"dataset":"sileod/movie_recommendation","split":"test","evaluation_context":"config/oren_final_contexts/movie_recommendation.json","provider":{}},
+    {"dataset":"tals/vitaminc","split":"validation","evaluation_context":"config/oren_final_contexts/vitaminc.json","provider":{}},
+    {"dataset":"tdiggelm/climate_fever","split":"test","evaluation_context":"config/oren_final_contexts/climate_fever.json","provider":{}},
+    {"dataset":"theatticusproject/cuad","split":"train","evaluation_context":"config/oren_final_contexts/cuad.json","provider":{}},
+    {"dataset":"tuetschek/multi_woz_v22","split":"test","evaluation_context":"config/oren_final_contexts/multi_woz_v22.json","provider":{}},
+    {"dataset":"ucberkeley-dlab/measuring-hate-speech","split":"train","evaluation_context":"config/oren_final_contexts/measuring_hate_speech.json","provider":{}},
+    {"dataset":"ucirvine/reuters21578","split":"test","evaluation_context":"config/oren_final_contexts/reuters21578.json","provider":{}},
+    {"dataset":"virattt/financial-qa-10K","split":"train","evaluation_context":"config/oren_final_contexts/financial_qa_10k.json","provider":{}},
+    {"dataset":"wics/strategy-qa","split":"test","evaluation_context":"config/oren_final_contexts/strategy_qa.json","provider":{}}
+  ]
+}

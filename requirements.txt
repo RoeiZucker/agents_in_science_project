@@ -1,4 +1,6 @@
 datasets
+bioc
+bitsandbytes
 huggingface_hub
 pillow
 torch

@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "raquiba/Sarcasm_News_Headline",
+  "dataset_context": {
+    "subset": "default",
+    "split": "test",
+    "question_column": "headline",
+    "context_column": "",
+    "answer_column": "is_sarcastic",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "accuracy",
+    "label_map": {"0": "not sarcastic", "1": "sarcastic"},
+    "prompt_template": "Classify the news headline as not sarcastic or sarcastic.\nHeadline: {headline}",
+    "notes": "Uses the explicit is_sarcastic target instead of treating the first column as input text."
+  },
+  "model_context": {"notes": "Binary text classifiers and constrained generative models are comparable."},
+  "confidence": "high"
+}

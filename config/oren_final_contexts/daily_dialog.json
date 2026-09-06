@@ -1,0 +1,22 @@
+{
+  "context_version": 1,
+  "dataset": "li2017dailydialog/daily_dialog",
+  "dataset_context": {
+    "dataset_source": "roskoN/dailydialog",
+    "subset": "",
+    "split": "validation",
+    "question_column": "utterances",
+    "context_column": "",
+    "answer_column": "emotions",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "multilabel_classification",
+    "evaluation_method": "set_f1",
+    "label_map": {"0": "no emotion", "1": "anger", "2": "disgust", "3": "fear", "4": "happiness", "5": "sadness", "6": "surprise"},
+    "prompt_template": "Read the dialogue and return every emotion expressed as a JSON array using only: no emotion, anger, disgust, fear, happiness, sadness, surprise.\nDialogue:\n{utterances}",
+    "notes": "The canonical repository cannot be generated with the installed datasets version, so evaluation uses the data-equivalent roskoN/dailydialog mirror. Each example is scored as the set of emotions present across the dialogue."
+  },
+  "model_context": {"notes": "Only text models that can produce or score the seven emotion labels are comparable."},
+  "confidence": "medium"
+}

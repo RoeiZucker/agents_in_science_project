@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "ucirvine/reuters21578",
+  "dataset_context": {
+    "subset": "ModApte",
+    "split": "test",
+    "question_column": "text",
+    "context_column": "",
+    "answer_column": "topics",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "multilabel_classification",
+    "evaluation_method": "set_f1",
+    "label_map": {"acq":"acq","alum":"alum","austdlr":"austdlr","barley":"barley","bfr":"bfr","bop":"bop","can":"can","carcass":"carcass","castor-oil":"castor-oil","castorseed":"castorseed","citruspulp":"citruspulp","cocoa":"cocoa","coconut":"coconut","coconut-oil":"coconut-oil","coffee":"coffee","copper":"copper","copra-cake":"copra-cake","corn":"corn","corn-oil":"corn-oil","cornglutenfeed":"cornglutenfeed","cotton":"cotton","cotton-oil":"cotton-oil","cottonseed":"cottonseed","cpi":"cpi","cpu":"cpu","crude":"crude","cruzado":"cruzado","dfl":"dfl","dkr":"dkr","dlr":"dlr","dmk":"dmk","earn":"earn","f-cattle":"f-cattle","fishmeal":"fishmeal","fuel":"fuel","gas":"gas","gnp":"gnp","gold":"gold","grain":"grain","groundnut":"groundnut","groundnut-oil":"groundnut-oil","heat":"heat","hk":"hk","hog":"hog","housing":"housing","income":"income","instal-debt":"instal-debt","interest":"interest","inventories":"inventories","ipi":"ipi","iron-steel":"iron-steel","jet":"jet","jobs":"jobs","l-cattle":"l-cattle","lead":"lead","lei":"lei","lin-meal":"lin-meal","lin-oil":"lin-oil","linseed":"linseed","lit":"lit","livestock":"livestock","lumber":"lumber","meal-feed":"meal-feed","money-fx":"money-fx","money-supply":"money-supply","naphtha":"naphtha","nat-gas":"nat-gas","nickel":"nickel","nkr":"nkr","nzdlr":"nzdlr","oat":"oat","oilseed":"oilseed","orange":"orange","palladium":"palladium","palm-oil":"palm-oil","palmkernel":"palmkernel","peseta":"peseta","pet-chem":"pet-chem","platinum":"platinum","plywood":"plywood","pork-belly":"pork-belly","potato":"potato","propane":"propane","rand":"rand","rape-meal":"rape-meal","rape-oil":"rape-oil","rapeseed":"rapeseed","red-bean":"red-bean","reserves":"reserves","retail":"retail","rice":"rice","ringgit":"ringgit","rubber":"rubber","rupiah":"rupiah","rye":"rye","saudriyal":"saudriyal","sfr":"sfr","ship":"ship","silver":"silver","skr":"skr","sorghum":"sorghum","soy-meal":"soy-meal","soy-oil":"soy-oil","soybean":"soybean","stg":"stg","strategic-metal":"strategic-metal","sugar":"sugar","sun-meal":"sun-meal","sun-oil":"sun-oil","sunseed":"sunseed","tapioca":"tapioca","tea":"tea","tin":"tin","trade":"trade","veg-oil":"veg-oil","wheat":"wheat","wool":"wool","wpi":"wpi","yen":"yen","zinc":"zinc"},
+    "prompt_template": "Assign every applicable Reuters topic code to this article. Return a JSON array using only the allowed topic codes.\nArticle:\n{text}",
+    "notes": "Uses the standard ModApte train/test split and the complete 120-topic vocabulary present in that configuration. Scores example-level topic-set F1."
+  },
+  "model_context": {"notes": "Only multilabel-capable or constrained set-generation text models are comparable; 120-label zero-shot scoring is expensive."},
+  "confidence": "high"
+}

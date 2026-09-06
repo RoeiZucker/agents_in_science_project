@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "virattt/financial-qa-10K",
+  "dataset_context": {
+    "subset": "default",
+    "split": "train",
+    "question_column": "question",
+    "context_column": "context",
+    "answer_column": "answer",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "numeric_qa",
+    "evaluation_method": "numeric_match",
+    "label_map": {},
+    "prompt_template": "Use the financial filing context to answer the question. Give the final numeric answer clearly.\nContext: {context}\nQuestion: {question}",
+    "notes": "The dataset is train-only and is evaluated zero-shot. Numeric-match scoring is used for financial quantities rather than exact string equality."
+  },
+  "model_context": {"notes": "Generative text models capable of context-grounded numeric QA are comparable."},
+  "confidence": "high"
+}

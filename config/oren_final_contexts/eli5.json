@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "sentence-transformers/eli5",
+  "dataset_context": {
+    "subset": "pair",
+    "split": "train",
+    "question_column": "question",
+    "context_column": "",
+    "answer_column": "answer",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "summarization",
+    "evaluation_method": "rouge_l",
+    "label_map": {},
+    "prompt_template": "Give a clear, self-contained ELI5-style answer to this question.\nQuestion: {question}",
+    "notes": "The pair config provides one long-form reference answer per question. ROUGE-L is used because normalized exact match is not meaningful for long-form answers."
+  },
+  "model_context": {"notes": "Only generative text models can be measured on this long-form task."},
+  "confidence": "medium"
+}

@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "tals/vitaminc",
+  "dataset_context": {
+    "subset": "default",
+    "split": "validation",
+    "question_column": "claim",
+    "context_column": "evidence",
+    "answer_column": "label",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "accuracy",
+    "label_map": {"SUPPORTS": "SUPPORTS", "REFUTES": "REFUTES", "NOT ENOUGH INFO": "NOT ENOUGH INFO"},
+    "prompt_template": "Evidence: {evidence}\nClaim: {claim}\nClassify the claim as SUPPORTS, REFUTES, or NOT ENOUGH INFO.",
+    "notes": "Uses the labeled validation split and retains all three VitaminC fact-verification labels."
+  },
+  "model_context": {"notes": "NLI classifiers and constrained generative classifiers are directly comparable."},
+  "confidence": "high"
+}

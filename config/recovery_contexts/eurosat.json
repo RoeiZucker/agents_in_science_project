@@ -1,0 +1,43 @@
+{
+  "dataset": "blanchon/EuroSAT_RGB",
+  "models": [
+    "torchgeo/resnet50_sentinel2_all_dino",
+    "timm/vit_base_patch16_clip_224.laion2b",
+    "OFA-Sys/chinese-clip-vit-base-patch16",
+    "OFA-Sys/chinese-clip-vit-large-patch14-336px",
+    "InvokeAI/clip-vit-large-patch14",
+    "timm/vit_large_patch14_clip_224.laion2b_ft_in12k_in1k",
+    "timm/vit_huge_patch14_clip_224.laion2b",
+    "timm/vit_base_patch16_clip_224.dfn2b",
+    "google/siglip2-so400m-patch14-384",
+    "google/siglip-so400m-patch14-384",
+    "timm/eva02_large_patch14_clip_336.merged2b",
+    "laion/CLIP-ViT-H-14-laion2B-s32B-b79K",
+    "microsoft/swin-large-patch4-window12-384-in22k"
+  ],
+  "dataset_context": {
+    "question_column": "",
+    "answer_column": "label",
+    "choices_column": "",
+    "image_column": "image",
+    "task": "image_classification",
+    "label_map": {
+      "0": "Annual Crop",
+      "1": "Forest",
+      "2": "Herbaceous Vegetation",
+      "3": "Highway",
+      "4": "Industrial Buildings",
+      "5": "Pasture",
+      "6": "Permanent Crop",
+      "7": "Residential Buildings",
+      "8": "River",
+      "9": "SeaLake"
+    },
+    "prompt_template": "Classify the land cover shown in this Sentinel-2 RGB satellite image. Choose one of: Annual Crop, Forest, Herbaceous Vegetation, Highway, Industrial Buildings, Pasture, Permanent Crop, Residential Buildings, River, SeaLake.",
+    "notes": "Hugging Face metadata marks this as image-classification. Builder features are image, label ClassLabel with 10 EuroSAT land-cover classes, and filename; no explicit choices column is present. Splits are train, validation, and test."
+  },
+  "model_context": {
+    "notes": "Model cards identify a mix of image-classification, zero-shot-image-classification, and image-feature-extraction vision backbones. TorchGeo resnet50_sentinel2_all_dino is tagged for image classification with torchgeo; several CLIP/SigLIP/OpenCLIP/timm models are feature or zero-shot vision encoders; microsoft/swin-large-patch4-window12-384-in22k is an ImageNet-21k image-classification backbone. Metadata only; no weights loaded and no inference run."
+  },
+  "confidence": "high"
+}

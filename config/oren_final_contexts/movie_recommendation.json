@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "sileod/movie_recommendation",
+  "dataset_context": {
+    "subset": "default",
+    "split": "test",
+    "question_column": "question",
+    "context_column": "",
+    "answer_column": "label",
+    "choices_column": "",
+    "choices_columns": ["answer_0", "answer_1", "answer_2", "answer_3"],
+    "image_column": "",
+    "task": "multiple_choice",
+    "evaluation_method": "accuracy",
+    "label_map": {"0": "A", "1": "B", "2": "C", "3": "D"},
+    "prompt_template": "Given the listed movies, select the best next movie recommendation.\nWatched movies: {question}",
+    "notes": "The four answer_N columns are choices and the integer label is their zero-based index."
+  },
+  "model_context": {"notes": "Generative models use constrained A-D output; compatible scoring models may score the choices directly."},
+  "confidence": "high"
+}

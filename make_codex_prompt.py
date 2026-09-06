@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
-"""Generate a Codex prompt for operating the evaluation agent."""
+"""Generate a metadata-only Codex context-scout prompt.
+
+Examples:
+  # Print a prompt for direct use with ``codex exec``.
+  python make_codex_prompt.py --dataset google/boolq --models google/flan-t5-small
+
+  # Save the prompt and ask Codex to write context to a chosen path.
+  python make_codex_prompt.py --dataset google/boolq --models google/flan-t5-small \
+    --context-output runtime/boolq_context.json --output-file codex_prompt.txt
+"""
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 
@@ -13,51 +23,59 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="auto")
     parser.add_argument("--project-root", default="$PWD/runtime")
     parser.add_argument("--hf-home", default="$PWD/runtime/.hf_cache")
-    parser.add_argument("--smoke-limit", type=int, default=3)
-    parser.add_argument("--stage", choices=("plan", "smoke", "full"), default="full")
+    parser.add_argument("--python", default=sys.executable)
+    parser.add_argument("--context-output", type=Path, default=Path("codex_context.json"))
     parser.add_argument("--output-file", type=Path, default=None)
+    parser.add_argument("--smoke-limit", type=int, default=3, help=argparse.SUPPRESS)
+    parser.add_argument("--stage", choices=("plan", "smoke", "full"), default="full", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
 def build_prompt(args: argparse.Namespace) -> str:
     models = "\n".join(f"- {model}" for model in args.models)
-    full_instruction = "Run full evaluation only if smoke passes." if args.stage == "full" else "Stop after the requested stage."
-    return f"""You are in the hf-eval-agent repo.
+    return f"""You are a metadata-only context scout for hf-eval-agent.
 
-Use the local evaluation-agent scripts to evaluate this dataset/model request.
-
-Dataset:
-- {args.dataset}
-
+Dataset: {args.dataset}
+Requested split: {args.split}
 Models:
 {models}
 
-Split:
-- {args.split}
+Your only task is to inspect dataset/model cards and lightweight metadata, then write extra context for the deterministic evaluator.
 
-Runtime paths:
+Hard restrictions:
+- Never run run_eval_agent.py or evaluate_hf_pair.py.
+- Never load model weights, create a model pipeline, train, or run inference.
+- Never run smoke or full evaluation.
+- Never edit repository code or delete caches.
+
+Allowed actions:
+- Read local repository files and existing metadata.
+- Inspect Hugging Face cards, builder schema/features, model config, and at most a tiny dataset sample when metadata is insufficient.
+- If Python is needed, use {args.python}.
+
+Runtime:
 - PROJECT_ROOT={args.project_root}
 - HF_HOME={args.hf_home}
 
-Rules:
-- Do not ask follow-up questions.
-- Make reasonable assumptions and keep moving.
-- Do not modify code unless a real script bug blocks the run.
-- Always inspect generated JSON/CSV/audit/log files before deciding the next step.
-- If a model is gated, missing, or too large to run, record the exact failure and continue to the next model when possible.
-- Use --continue-on-error for multi-model runs.
+Write exactly one JSON object to {args.context_output}:
+{{
+  "dataset": "{args.dataset}",
+  "models": ["model ids"],
+  "dataset_context": {{
+    "question_column": "existing column or dotted path, or empty",
+    "answer_column": "existing column or dotted/list path, or empty",
+    "choices_column": "existing choices column, or empty",
+    "image_column": "existing image column, or empty",
+    "task": "generation|multiple_choice|image_classification or empty",
+    "label_map": {{}},
+    "prompt_template": "optional template using dataset columns",
+    "notes": "brief evidence for the context"
+  }},
+  "model_context": {{"notes": "metadata-only notes; no inference claims"}},
+  "confidence": "high|medium|low"
+}}
 
-Workflow:
-1. Export PROJECT_ROOT and HF_HOME, and create PROJECT_ROOT.
-2. Run plan with run_eval_agent.py.
-3. Inspect plans.json and results.csv.
-4. Run smoke with --smoke-limit {args.smoke_limit}.
-5. Inspect results.csv, audits/*.json, and logs/*.stderr.txt if present.
-6. {full_instruction}
-7. Summarize final scores and provide paths to results.csv, summary.json, and predictions.jsonl.
-
-Requested final stage:
-- {args.stage}
+Leave fields empty rather than guessing. After writing the JSON file, stop immediately.
 """
 
 

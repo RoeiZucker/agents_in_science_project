@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "purpose": "Bounded two-dataset test using every real combined Artifact Linker export in this checkout.",
+  "datasets": [
+    {
+      "dataset": "HuggingFaceFW/CommonsenseQA",
+      "split": "auto",
+      "provider": {
+        "artifact_output": "external/artifact-linker/data/custom_combined_predictions/dataset_10194_HuggingFaceFW_CommonsenseQA_top25_combined.json",
+        "artifact_dataset": "HuggingFaceFW/CommonsenseQA",
+        "method": "gnn-gatv2-combined",
+        "version": "ad29148b64c96cd62a85e6937231b30d651e042d",
+        "score_field": "combined_score",
+        "max_candidates": 1
+      }
+    },
+    {
+      "dataset": "xai-org/RealworldQA",
+      "split": "auto",
+      "provider": {
+        "artifact_output": "external/artifact-linker/data/custom_combined_predictions/dataset_14053_xai-org_RealworldQA_top25_combined.json",
+        "artifact_dataset": "xai-org/RealworldQA",
+        "method": "gnn-gatv2-combined",
+        "version": "ad29148b64c96cd62a85e6937231b30d651e042d",
+        "score_field": "combined_score",
+        "max_candidates": 1
+      }
+    }
+  ]
+}

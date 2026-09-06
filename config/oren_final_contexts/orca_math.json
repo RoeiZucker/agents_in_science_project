@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "microsoft/orca-math-word-problems-200k",
+  "dataset_context": {
+    "subset": "default",
+    "split": "train",
+    "question_column": "question",
+    "context_column": "",
+    "answer_column": "answer",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "numeric_qa",
+    "evaluation_method": "numeric_match",
+    "label_map": {},
+    "prompt_template": "Solve the math word problem. Give the final numeric answer clearly.\nProblem: {question}",
+    "notes": "The dataset is train-only and is used strictly for zero-shot evaluation. Numeric-match scoring tolerates formatting while requiring the same final numeric value."
+  },
+  "model_context": {"notes": "Generative text models are evaluated zero-shot; classifiers and incompatible modalities are unsupported."},
+  "confidence": "high"
+}

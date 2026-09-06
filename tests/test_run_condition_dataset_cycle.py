@@ -6,10 +6,28 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from run_condition_dataset_cycle import delete_command, download_command, evaluate_command, reported_failures, selected_datasets
+from run_condition_dataset_cycle import (
+    delete_command,
+    download_command,
+    evaluate_command,
+    reported_failures,
+    require_full_subset,
+    selected_datasets,
+    summary_json,
+    validate_runner_context,
+)
 
 
 class RunConditionDatasetCycleTests(unittest.TestCase):
+    def test_full_run_requires_dataset_subset(self) -> None:
+        with self.assertRaises(ValueError):
+            require_full_subset(
+                SimpleNamespace(stage="full", dataset_subset_file=None)
+            )
+        require_full_subset(
+            SimpleNamespace(stage="smoke", dataset_subset_file=None)
+        )
+
     def test_selected_datasets_are_unique_after_filters(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "conditions.csv"
@@ -19,7 +37,9 @@ class RunConditionDatasetCycleTests(unittest.TestCase):
                 condition=["A"],
                 dataset=[],
                 limit_pairs=0,
+                limit_pairs_per_dataset=0,
                 limit_datasets=0,
+                dataset_subset_file=None,
             )
 
             self.assertEqual(selected_datasets(args), ["owner/one", "owner/two"])
@@ -47,6 +67,22 @@ class RunConditionDatasetCycleTests(unittest.TestCase):
         self.assertIn("--dataset", command)
         self.assertIn("owner/one", command)
 
+    def test_manual_context_is_passed_and_requires_one_dataset(self) -> None:
+        args = base_args()
+        args.runner = "manual"
+        args.context_file = Path("context.json")
+        command = evaluate_command("owner/one", args, Path("/repo"))
+        self.assertIn("--context-file", command)
+        self.assertIn("context.json", command)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            context = Path(tmp) / "context.json"
+            context.write_text("{}", encoding="utf-8")
+            validation_args = SimpleNamespace(runner="manual", context_file=context)
+            validate_runner_context(validation_args, ["owner/one"])
+            with self.assertRaises(ValueError):
+                validate_runner_context(validation_args, ["owner/one", "owner/two"])
+
     def test_delete_command_targets_one_dataset(self) -> None:
         args = base_args()
 
@@ -62,6 +98,30 @@ class RunConditionDatasetCycleTests(unittest.TestCase):
 
         self.assertEqual(reported_failures(text), 4)
 
+    def test_summary_json_uses_final_object_after_progress_output(self) -> None:
+        text = '[batch] start\n{"temporary": 1}\n[batch] done\n{"datasets": 2, "failures": 3}\n'
+
+        self.assertEqual(summary_json(text), {"datasets": 2, "failures": 3})
+
+    def test_dataset_subset_applies_to_smoke_pipeline_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            conditions = root / "conditions.csv"
+            subset = root / "datasets.txt"
+            write_conditions(conditions)
+            subset.write_text("owner/two\n", encoding="utf-8")
+            args = SimpleNamespace(
+                conditions_csv=conditions,
+                condition=[],
+                dataset=[],
+                limit_pairs=0,
+                limit_pairs_per_dataset=0,
+                limit_datasets=0,
+                dataset_subset_file=subset,
+            )
+
+            self.assertEqual(selected_datasets(args), ["owner/two"])
+
 
 def base_args() -> SimpleNamespace:
     return SimpleNamespace(
@@ -74,17 +134,26 @@ def base_args() -> SimpleNamespace:
         trust_remote_code=True,
         stage="smoke",
         runner="codex",
+        context_file=None,
         codex_bin="codex",
         codex_approval="never",
         smoke_limit=3,
         sample_size=20,
         timeout=0,
+        codex_timeout=120,
+        codex_bypass_sandbox=False,
         condition=[],
         limit_pairs=2,
+        limit_pairs_per_dataset=0,
+        dataset_subset_file=None,
         continue_on_error=True,
         skip_refinement=False,
         fresh_run_dir=True,
         skip_model_download=False,
+        keep_model_cache=False,
+        keep_dataset_cache=False,
+        allow_partial_download=True,
+        skip_version_incompatible_datasets=True,
     )
 
 

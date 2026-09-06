@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "nlpaueb/finer-139",
+  "dataset_context": {
+    "subset": "finer-139",
+    "split": "test",
+    "question_column": "tokens",
+    "context_column": "",
+    "answer_column": "ner_tags",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "token_classification",
+    "evaluation_method": "set_f1",
+    "label_map": {},
+    "prompt_template": "Extract typed financial entities from these tokens: {tokens}",
+    "notes": "Gold BIO labels are read from the Sequence(ClassLabel) feature and reconstructed into typed entity spans. Non-token-classification checkpoints are reported unsupported."
+  },
+  "model_context": {"notes": "A compatible token-classification head and label ontology are required."},
+  "confidence": "high"
+}

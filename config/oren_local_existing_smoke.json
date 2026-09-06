@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "purpose": "Oren AutoModelAdvisor retrieval for an existing ArtifactBench dataset, with local cached evidence and Codex ranking.",
+  "datasets": [
+    {
+      "dataset": "HuggingFaceFW/CommonsenseQA",
+      "split": "auto",
+      "initial_context": {
+        "task": "multiple_choice",
+        "notes": [
+          "The dataset is an exact node in the local ArtifactBench graph."
+        ]
+      },
+      "provider": {
+        "command": "oren_local_provider.py",
+        "artifact_linker_root": "external/artifact-linker",
+        "version": "20b1e1d57f008cf1296b9dfbdb693029e0742892",
+        "max_candidates": 5,
+        "max_params_b": 14,
+        "method1_top_k": 10,
+        "models_per_neighbor": 15,
+        "method2_rank_pool": 500,
+        "method2_context_top_k": 15,
+        "max_evidence": 5,
+        "codex_bin": "/usr/local/bin/codex",
+        "codex_timeout": 300
+      }
+    }
+  ]
+}

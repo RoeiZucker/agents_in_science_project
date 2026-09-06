@@ -22,7 +22,8 @@ class RefinementAgentCoreTests(unittest.TestCase):
             self.assertEqual(analysis["comparisons"]["best_model"]["model"], "google/flan-t5-base")
             self.assertAlmostEqual(analysis["comparisons"]["score_gap"], 0.25)
             self.assertEqual(len(analysis["comparisons"]["all_models_failed_examples"]), 1)
-            self.assertEqual(analysis["models"][0]["retrieval_candidate"]["rank"], 1)
+            self.assertEqual(analysis["models"][0]["retrieval_candidates"][0]["rank"], 1)
+            self.assertEqual(len(analysis["models"][0]["retrieval_candidates"]), 2)
             self.assertEqual(analysis["models"][0]["per_target_accuracy"]["true"]["accuracy"], 0.0)
             self.assertIn("prediction_collapse", analysis["failure_modes"])
 
@@ -35,7 +36,8 @@ class RefinementAgentCoreTests(unittest.TestCase):
 
             self.assertEqual(feedback["next_round"], 3)
             self.assertIn("reading-comprehension", feedback["retrieval_constraints"]["prefer_tasks"])
-            self.assertIn("google/flan-t5-small", feedback["retrieval_constraints"]["candidate_exclusions"])
+            self.assertEqual(feedback["retrieval_constraints"]["candidate_exclusions"], [])
+            self.assertIn("google/flan-t5-small", feedback["retrieval_constraints"]["baseline_models"])
             self.assertIn("candidate_models.json", prompt)
 
 
@@ -107,7 +109,8 @@ def write_candidates(root: Path) -> Path:
     path = root / "candidates.json"
     value = {
         "candidates": [
-            {"model": "google/flan-t5-small", "rank": 1, "score": 0.7, "source": "mock", "reason": "small"},
+            {"candidate_id": "A-1", "condition": "A", "model": "google/flan-t5-small", "rank": 1, "score": 0.7, "source": "mock", "reason": "small"},
+            {"candidate_id": "B-1", "condition": "B", "model": "google/flan-t5-small", "rank": 1, "score": 0.6, "source": "mock", "reason": "duplicate provenance"},
             {"model": "google/flan-t5-base", "rank": 2, "score": 0.6, "source": "mock", "reason": "base"},
         ]
     }

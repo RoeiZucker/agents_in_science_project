@@ -12,11 +12,15 @@ dependencies = [
   "transformers",
 ]
 
+[project.optional-dependencies]
+gguf = ["llama-cpp-python"]
+
 [tool.setuptools]
 py-modules = [
   "audit_eval_results",
   "eval_agent_core",
   "evaluate_hf_pair",
+  "gguf_backend",
   "inspect_hf_dataset",
   "inspect_hf_model",
   "analyze_eval_errors",

@@ -1,0 +1,21 @@
+{
+  "context_version": 1,
+  "dataset": "wics/strategy-qa",
+  "dataset_context": {
+    "subset": "strategyQA",
+    "split": "test",
+    "question_column": "question",
+    "context_column": "",
+    "answer_column": "answer",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "accuracy",
+    "label_map": {"False": "no", "True": "yes"},
+    "prompt_template": "Answer the strategy question with yes or no.\nQuestion: {question}",
+    "notes": "Uses the explicit boolean answer target from the labeled test split."
+  },
+  "model_context": {"notes": "Binary classifiers and constrained yes/no generative models are comparable."},
+  "confidence": "high"
+}

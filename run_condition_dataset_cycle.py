@@ -7,7 +7,22 @@ Examples:
     --project-root runtime \
     --stage smoke \
     --runner codex \
+    --limit-datasets 2 \
+    --limit-pairs-per-dataset 2 \
+    --codex-bypass-sandbox \
+    --keep-dataset-cache \
+    --keep-model-cache \
     --trust-remote-code
+
+  # Full pipeline restricted by a durable dataset allowlist.
+  python run_condition_dataset_cycle.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --full-limit 1000 \
+    --stage full \
+    --dataset-subset-file config/full_pipeline_datasets.txt \
+    --runner script
+
 
   python run_condition_dataset_cycle.py \
     --conditions-csv ../evaluation_conditions.csv \
@@ -28,9 +43,11 @@ Examples:
 
   python run_condition_dataset_cycle.py \
     --conditions-csv ../evaluation_conditions.csv \
+    --full-limit 1000 \
     --project-root runtime \
     --condition A_merged \
     --stage full \
+    --dataset-subset-file config/full_pipeline_datasets.txt \
     --runner script \
     --trust-remote-code
 
@@ -38,6 +55,7 @@ Examples:
     --conditions-csv ../evaluation_conditions.csv \
     --project-root runtime \
     --dataset ImperialCollegeLondon/health_fact \
+    --dataset-subset-file config/full_pipeline_datasets.txt \
     --fail-version-incompatible-datasets
 
   python run_condition_dataset_cycle.py \
@@ -59,6 +77,20 @@ Examples:
     --codex-timeout 120 \
     --trust-remote-code \
     --allow-partial-download
+
+  # Evaluate one dataset with manually authored context and no Codex scout.
+  python run_condition_dataset_cycle.py \
+    --conditions-csv ../evaluation_conditions.csv \
+    --project-root runtime \
+    --dataset ImperialCollegeLondon/health_fact \
+    --limit-pairs 2 \
+    --stage smoke \
+    --runner manual \
+    --context-file config/health_fact_context.json \
+    --keep-dataset-cache \
+    --keep-model-cache
+
+  Direct encoder/classifier scoring is selected automatically when generation is unavailable.
 """
 from __future__ import annotations
 
@@ -67,6 +99,7 @@ import csv
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -85,17 +118,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--download-split", action="append", default=[])
     parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument("--stage", choices=("plan", "smoke", "full"), default="full")
-    parser.add_argument("--runner", choices=("script", "codex"), default="script")
+    parser.add_argument(
+        "--runner", choices=("script", "codex", "manual"), default="script"
+    )
+    parser.add_argument(
+        "--context-file", type=Path,
+        help="Validated context JSON; required with --runner manual.",
+    )
     parser.add_argument("--codex-bin", default="codex")
     parser.add_argument("--codex-approval", default="never")
     parser.add_argument("--codex-timeout", type=int, default=120, help="Seconds to wait for Codex before falling back or failing.")
+    parser.add_argument("--codex-context-attempts", type=int, default=2, help="Metadata-scout attempts when context JSON is missing or invalid.")
+    parser.add_argument("--codex-bypass-sandbox", action="store_true", help="Run nested Codex without its command sandbox for systems where bwrap/user namespaces fail.")
     parser.add_argument("--smoke-limit", type=int, default=3)
     parser.add_argument("--sample-size", type=int, default=20)
+    parser.add_argument("--full-limit", type=int, default=1000, help="Maximum randomly selected examples per full evaluation; 0 evaluates every example.")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--allow-label-scores",
+        action="store_true",
+        help=(
+            "Optional: prefer answer-choice likelihood for generative multiple-choice models; "
+            "non-generative direct scoring is automatic."
+        ),
+    )
     parser.add_argument("--timeout", type=int, default=0)
     parser.add_argument("--condition", action="append", default=[])
     parser.add_argument("--dataset", action="append", default=[])
     parser.add_argument("--limit-datasets", type=int, default=0)
     parser.add_argument("--limit-pairs", type=int, default=0)
+    parser.add_argument("--limit-pairs-per-dataset", type=int, default=0, help="Keep this many condition/model rows per selected dataset.")
+    parser.add_argument("--dataset-subset-file", type=Path, help="Keep only dataset ids listed one per line for this pipeline run.")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--continue-on-error", action="store_true", default=True)
     parser.add_argument("--stop-on-error", action="store_false", dest="continue_on_error")
@@ -113,14 +166,36 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    require_full_subset(args)
     script_dir = Path(__file__).resolve().parent
     datasets = selected_datasets(args)
+    validate_runner_context(args, datasets)
+    progress(f"[cycle] selected {len(datasets)} datasets; runner={args.runner}; stage={args.stage}; output={output_root(args)}")
     results = run_cycle(datasets, args, script_dir)
     write_cycle_report(args, results)
     write_cycle_batch_results(args)
     print(json.dumps(summary(args, results), indent=2))
     if has_failure(results):
         sys.exit(1)
+
+
+def validate_runner_context(args: argparse.Namespace, datasets: list[str]) -> None:
+    context_file = getattr(args, "context_file", None)
+    if args.runner != "manual":
+        if context_file:
+            raise ValueError("--context-file requires --runner manual.")
+        return
+    if not context_file:
+        raise ValueError("--runner manual requires --context-file.")
+    if len(datasets) != 1:
+        raise ValueError("Manual context mode requires exactly one selected dataset.")
+    if not context_file.is_file():
+        raise FileNotFoundError(f"Manual context file does not exist: {context_file}")
+
+
+def require_full_subset(args: argparse.Namespace) -> None:
+    if args.stage == "full" and not args.dataset_subset_file:
+        raise ValueError("Full condition-cycle runs require --dataset-subset-file.")
 
 
 def selected_datasets(args: argparse.Namespace) -> list[str]:
@@ -137,9 +212,38 @@ def selected_rows(args: argparse.Namespace) -> list[dict[str, str]]:
         rows = [row for row in rows if row["condition"] in set(args.condition)]
     if args.dataset:
         rows = [row for row in rows if row["query_dataset"] in set(args.dataset)]
+    if getattr(args, "dataset_subset_file", None):
+        allowed = set(read_dataset_subset(args.dataset_subset_file))
+        rows = [row for row in rows if row["query_dataset"] in allowed]
+    if args.limit_pairs_per_dataset:
+        rows = limit_rows_per_dataset(rows, args.limit_pairs_per_dataset)
     if args.limit_pairs:
         rows = rows[: args.limit_pairs]
     return rows
+
+
+
+def read_dataset_subset(path: Path) -> list[str]:
+    datasets = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        value = raw_line.split("#", 1)[0].strip()
+        if value and value not in datasets:
+            datasets.append(value)
+    if not datasets:
+        raise ValueError(f"Dataset subset file is empty: {path}")
+    return datasets
+
+def limit_rows_per_dataset(rows: list[dict[str, str]], limit: int) -> list[dict[str, str]]:
+    counts: dict[str, int] = {}
+    selected = []
+    for row in rows:
+        dataset = row["query_dataset"]
+        count = counts.get(dataset, 0)
+        if count >= limit:
+            continue
+        selected.append(row)
+        counts[dataset] = count + 1
+    return selected
 
 
 def read_conditions(path: Path) -> list[dict[str, str]]:
@@ -163,8 +267,11 @@ def unique(values: list[str]) -> list[str]:
 
 def run_cycle(datasets: list[str], args: argparse.Namespace, script_dir: Path) -> list[dict[str, Any]]:
     results = []
-    for dataset in datasets:
+    total = len(datasets)
+    for index, dataset in enumerate(datasets, start=1):
+        progress(f"[cycle] dataset {index}/{total} start: {dataset}")
         result = run_dataset_cycle(dataset, args, script_dir)
+        progress(f"[cycle] dataset {index}/{total} done: {dataset} status={result['status']}")
         results.append(result)
         if result["status"] == "failed" and not args.continue_on_error:
             break
@@ -186,7 +293,9 @@ def run_dataset_cycle(dataset: str, args: argparse.Namespace, script_dir: Path) 
 
 
 def run_step(name: str, command: list[str], cwd: Path) -> dict[str, Any]:
-    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    progress(f"[cycle] step start: {name}")
+    result = run_streaming_command(command, cwd)
+    progress(f"[cycle] step done: {name} returncode={result.returncode}")
     return {
         "name": name,
         "command": command,
@@ -194,6 +303,34 @@ def run_step(name: str, command: list[str], cwd: Path) -> dict[str, Any]:
         "stdout_tail": tail(result.stdout),
         "stderr_tail": tail(result.stderr),
     }
+
+
+def run_streaming_command(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    process = subprocess.Popen(command, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    threads = [
+        threading.Thread(target=collect_stream, args=(process.stdout, stdout_lines), daemon=True),
+        threading.Thread(target=collect_stream, args=(process.stderr, stderr_lines), daemon=True),
+    ]
+    for thread in threads:
+        thread.start()
+    returncode = process.wait()
+    for thread in threads:
+        thread.join()
+    return subprocess.CompletedProcess(command, returncode, "".join(stdout_lines), "".join(stderr_lines))
+
+
+def collect_stream(stream: Any, lines: list[str]) -> None:
+    if stream is None:
+        return
+    for line in stream:
+        lines.append(line)
+        print(line, end="", flush=True)
+
+
+def progress(message: str) -> None:
+    print(message, flush=True)
 
 
 def evaluate_step(command: list[str], cwd: Path) -> dict[str, Any]:
@@ -245,10 +382,18 @@ def reported_skips(text: str) -> int:
 
 
 def summary_json(text: str) -> dict[str, Any]:
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {}
+    decoder = json.JSONDecoder()
+    values = []
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            values.append(value)
+    return values[-1] if values else {}
 
 
 def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -> list[str]:
@@ -260,8 +405,9 @@ def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -
         command.append("--trust-remote-code")
     if not args.skip_model_download:
         command.append("--include-models")
-    if args.limit_pairs:
-        command.extend(["--limit-pairs", str(args.limit_pairs)])
+    pair_limit = dataset_pair_limit(args)
+    if pair_limit:
+        command.extend(["--limit-pairs", str(pair_limit)])
     for condition in args.condition:
         command.extend(["--condition", condition])
     if args.continue_on_error:
@@ -269,6 +415,10 @@ def download_command(dataset: str, args: argparse.Namespace, script_dir: Path) -
     if not args.skip_version_incompatible_datasets:
         command.append("--fail-version-incompatible-datasets")
     return command
+
+
+def dataset_pair_limit(args: argparse.Namespace) -> int:
+    return args.limit_pairs_per_dataset or args.limit_pairs
 
 
 def download_split_args(args: argparse.Namespace) -> list[str]:
@@ -295,10 +445,16 @@ def evaluate_command(dataset: str, args: argparse.Namespace, script_dir: Path) -
         args.codex_approval,
         "--codex-timeout",
         str(args.codex_timeout),
+        "--codex-context-attempts",
+        str(getattr(args, "codex_context_attempts", 2)),
         "--smoke-limit",
         str(args.smoke_limit),
         "--sample-size",
         str(args.sample_size),
+        "--full-limit",
+        str(getattr(args, "full_limit", 1000)),
+        "--seed",
+        str(getattr(args, "seed", 42)),
         "--dataset",
         dataset,
         "--python",
@@ -314,10 +470,17 @@ def optional_eval_args(args: argparse.Namespace) -> list[str]:
     values = []
     if args.output_root:
         values.extend(["--output-root", str(args.output_root)])
+    if args.context_file:
+        values.extend(["--context-file", str(args.context_file)])
+    if args.codex_bypass_sandbox:
+        values.append("--codex-bypass-sandbox")
+    if getattr(args, "allow_label_scores", False):
+        values.append("--allow-label-scores")
     if args.timeout:
         values.extend(["--timeout", str(args.timeout)])
-    if args.limit_pairs:
-        values.extend(["--limit-pairs", str(args.limit_pairs)])
+    pair_limit = dataset_pair_limit(args)
+    if pair_limit:
+        values.extend(["--limit-pairs", str(pair_limit)])
     if args.trust_remote_code:
         values.append("--trust-remote-code")
     if args.continue_on_error:
@@ -372,8 +535,11 @@ def write_cycle_batch_results(args: argparse.Namespace) -> None:
 
 def joined_cycle_rows(args: argparse.Namespace) -> list[dict[str, Any]]:
     eval_rows = all_eval_rows(args)
+    datasets = set(selected_datasets(args))
     rows = []
     for row in selected_rows(args):
+        if row["query_dataset"] not in datasets:
+            continue
         eval_row = eval_rows.get((row["query_dataset"], row["model_name"]), {})
         rows.append(join_condition_row(row, eval_row))
     return rows
@@ -399,6 +565,8 @@ def join_condition_row(row: dict[str, str], eval_row: dict[str, str]) -> dict[st
     return {
         **row,
         "eval_split": eval_row.get("split", ""),
+        "eval_protocol": eval_row.get("evaluation_protocol", ""),
+        "eval_metric": eval_row.get("metric", ""),
         "eval_score": eval_row.get("score", ""),
         "eval_total": eval_row.get("total", ""),
         "eval_labeled_total": eval_row.get("labeled_total", ""),
@@ -434,6 +602,8 @@ def batch_fields() -> list[str]:
         "source_method",
         "reasoning",
         "eval_split",
+        "eval_protocol",
+        "eval_metric",
         "eval_score",
         "eval_total",
         "eval_labeled_total",

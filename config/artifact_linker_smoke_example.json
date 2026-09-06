@@ -1,0 +1,18 @@
+{
+  "manifest_version": 1,
+  "purpose": "Smallest live smoke using the top real Artifact Linker candidate only.",
+  "datasets": [
+    {
+      "dataset": "HuggingFaceFW/CommonsenseQA",
+      "split": "auto",
+      "provider": {
+        "artifact_output": "external/artifact-linker/data/custom_combined_predictions/dataset_10194_HuggingFaceFW_CommonsenseQA_top25_combined.json",
+        "artifact_dataset": "HuggingFaceFW/CommonsenseQA",
+        "method": "gnn-gatv2-combined",
+        "version": "ad29148b64c96cd62a85e6937231b30d651e042d",
+        "score_field": "combined_score",
+        "max_candidates": 1
+      }
+    }
+  ]
+}

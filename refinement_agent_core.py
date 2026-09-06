@@ -8,6 +8,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from result_contract import measured_success, result_outcome
+
 
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -35,12 +37,16 @@ def maybe_read_json(path: Path) -> Any:
     return read_json(path) if path.exists() else None
 
 
-def load_candidate_models(path: Path | None) -> dict[str, dict[str, Any]]:
+def load_candidate_models(path: Path | None) -> dict[str, list[dict[str, Any]]]:
     if not path:
         return {}
     data = read_json(path)
     candidates = data if isinstance(data, list) else data.get("candidates", [])
-    return {candidate["model"]: candidate for candidate in candidates if "model" in candidate}
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for candidate in candidates:
+        if candidate.get("model"):
+            grouped[candidate["model"]].append(candidate)
+    return dict(grouped)
 
 
 def analyze_run(
@@ -71,7 +77,7 @@ def analyze_run(
 
 def analyze_models(
     results: list[dict[str, str]],
-    candidates: dict[str, dict[str, Any]],
+    candidates: dict[str, list[dict[str, Any]]],
     max_failed_examples: int,
 ) -> list[dict[str, Any]]:
     analyses = []
@@ -81,7 +87,7 @@ def analyze_models(
         predictions = read_predictions(output_dir)
         analysis = analyze_model(row, summary, predictions, max_failed_examples)
         if row.get("model") in candidates:
-            analysis["retrieval_candidate"] = candidates[row["model"]]
+            analysis["retrieval_candidates"] = candidates[row["model"]]
         analyses.append(analysis)
     return analyses
 
@@ -97,11 +103,15 @@ def analyze_model(
     predictions: list[dict[str, Any]],
     max_failed_examples: int,
 ) -> dict[str, Any]:
-    target_values = known_targets(predictions)
+    protocol = result_row.get("evaluation_protocol") or (summary or {}).get("evaluation_protocol")
+    target_values = known_targets(predictions) if fixed_label_protocol(protocol, summary) else set()
     return {
         "model": result_row.get("model"),
         "score": parse_float(result_row.get("score")),
         "status": result_row.get("status"),
+        "outcome": result_outcome(result_row.get("status"), result_row.get("score"), result_row.get("labeled_total")),
+        "evaluation_protocol": protocol,
+        "metric": result_row.get("metric") or (summary or {}).get("metric"),
         "total": parse_int(result_row.get("total")),
         "labeled_total": parse_int(result_row.get("labeled_total")),
         "output_dir": result_row.get("output_dir"),
@@ -116,6 +126,19 @@ def analyze_model(
         "failed_examples": failed_examples(predictions, max_failed_examples),
         "failure_modes": model_failure_modes(result_row, summary, predictions, target_values),
     }
+
+
+def fixed_label_protocol(protocol: Any, summary: dict[str, Any] | None) -> bool:
+    fixed = {
+        "multiple_choice_accuracy",
+        "label_generation_accuracy",
+        "label_logprob_accuracy",
+        "tagged_label_generation_accuracy",
+        "tagged_multiple_choice_accuracy",
+        "classifier_label_accuracy",
+        "zero_shot_nli_accuracy",
+    }
+    return str(protocol) in fixed or bool((summary or {}).get("label_values"))
 
 
 def known_targets(predictions: list[dict[str, Any]]) -> set[str]:
@@ -213,17 +236,19 @@ def model_failure_modes(
     modes = []
     score = parse_float(result_row.get("score"))
     labeled_total = parse_int(result_row.get("labeled_total"))
-    if result_row.get("status") != "ok":
-        modes.append(mode("evaluation_failed", "high", "Evaluation status is not ok."))
+    if not measured_success(result_row.get("status"), result_row.get("score"), result_row.get("labeled_total")):
+        modes.append(mode("evaluation_failed", "high", "No valid labeled measurement was produced."))
     if summary is None:
         modes.append(mode("missing_summary", "high", "summary.json was not found."))
     if not predictions:
         modes.append(mode("missing_predictions", "high", "predictions.jsonl was not found or empty."))
     if labeled_total == 0:
         modes.append(mode("unlabeled_split", "high", "No labeled examples were scored."))
-    if score is not None and score < 0.5 and labeled_total:
-        modes.append(mode("low_accuracy", "medium", f"Accuracy is {score:.3f}."))
     modes.extend(output_quality_modes(predictions, target_values))
+    tag_failures = parse_int((summary or {}).get("tag_parse_failures"))
+    if tag_failures:
+        total = max(1, parse_int((summary or {}).get("total")))
+        modes.append(mode("tag_parse_failures", severity_for_fraction(tag_failures / total), f"{tag_failures} tagged answers could not be parsed."))
     modes.extend(per_label_modes(predictions, score))
     return modes
 
@@ -265,7 +290,7 @@ def mode(name: str, severity: str, detail: str) -> dict[str, str]:
 
 
 def compare_models(models: list[dict[str, Any]]) -> dict[str, Any]:
-    scored = [model for model in models if model.get("score") is not None]
+    scored = [model for model in models if model.get("outcome") == "success"]
     best = max(scored, key=lambda item: item["score"], default=None)
     worst = min(scored, key=lambda item: item["score"], default=None)
     return {
@@ -314,15 +339,15 @@ def example_key(example: dict[str, Any]) -> str:
 def retrieval_vs_measured(models: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for model in models:
-        candidate = model.get("retrieval_candidate")
-        if not candidate:
-            continue
-        rows.append({
-            "model": model.get("model"),
-            "retrieval_rank": candidate.get("rank"),
-            "retrieval_score": candidate.get("score"),
-            "measured_score": model.get("score"),
-        })
+        for candidate in model.get("retrieval_candidates", []):
+            rows.append({
+                "candidate_id": candidate.get("candidate_id"),
+                "condition": candidate.get("condition"),
+                "model": model.get("model"),
+                "retrieval_rank": candidate.get("rank"),
+                "retrieval_score": candidate.get("score"),
+                "measured_score": model.get("score"),
+            })
     return sorted(rows, key=lambda row: none_last(row.get("retrieval_rank")))
 
 
@@ -362,9 +387,13 @@ def make_retrieval_feedback(analysis: dict[str, Any], next_round: int = 2) -> di
     task = analysis.get("task", "unknown")
     best = analysis.get("comparisons", {}).get("best_model") or {}
     models = analysis.get("models", [])
+    requested_split = analysis.get("requested_split") or analysis.get("split")
+    evaluated_split = analysis.get("evaluated_split") or analysis.get("split")
     return {
         "dataset": analysis.get("dataset"),
-        "split": analysis.get("split"),
+        "split": requested_split,
+        "requested_split": requested_split,
+        "evaluated_split": evaluated_split,
         "next_round": next_round,
         "best_model": best.get("model"),
         "best_score": best.get("score"),
@@ -389,7 +418,7 @@ def build_observations(analysis: dict[str, Any]) -> list[str]:
 def build_retrieval_constraints(task: str, models: list[dict[str, Any]]) -> dict[str, Any]:
     constraints = task_constraints(task)
     constraints["candidate_exclusions"] = weak_or_failed_models(models)
-    constraints["baseline_models"] = [model["model"] for model in models if model.get("score") is not None]
+    constraints["baseline_models"] = [model["model"] for model in models if model.get("outcome") == "success"]
     return constraints
 
 
@@ -425,13 +454,8 @@ def task_constraints(task: str) -> dict[str, list[str]]:
     }
 
 
-def weak_or_failed_models(models: list[dict[str, Any]], threshold: float = 0.5) -> list[str]:
-    excluded = []
-    for model in models:
-        score = model.get("score")
-        if model.get("status") != "ok" or score is None or score < threshold:
-            excluded.append(model.get("model"))
-    return [model for model in excluded if model]
+def weak_or_failed_models(models: list[dict[str, Any]]) -> list[str]:
+    return [model["model"] for model in models if model.get("model") and model.get("outcome") != "success"]
 
 
 def build_candidate_request(analysis: dict[str, Any], next_round: int) -> dict[str, Any]:
@@ -442,7 +466,7 @@ def build_candidate_request(analysis: dict[str, Any], next_round: int) -> dict[s
         "task": analysis.get("task"),
         "minimum_candidates": 5,
         "expected_format": "candidate_models.json",
-        "fields": ["model", "rank", "score", "source", "reason"],
+        "fields": ["candidate_id", "condition", "model", "rank", "score", "source", "intended_use", "reason"],
     }
 
 
@@ -466,7 +490,7 @@ def feedback_prompt(feedback: dict[str, Any]) -> str:
     lines.extend([
         "",
         "Return candidate_models.json with a top-level candidates list.",
-        "Each candidate must include model, rank, score, source, and reason.",
+        "Each candidate must include candidate_id, condition, model, rank, score, source, intended_use, and reason.",
     ])
     return "\n".join(lines) + "\n"
 
@@ -476,12 +500,24 @@ def infer_task(dataset_inspection: dict[str, Any] | None, models: list[dict[str,
         task = dataset_inspection["task"]
         if task == "generation" and looks_boolean_dataset(dataset_inspection):
             return "boolean_qa"
+        if task == "generation" and looks_finite_label_text_dataset(dataset_inspection):
+            return "classification"
         return task
     summaries = [model.get("summary") for model in models if model.get("summary")]
     for summary in summaries:
         if summary.get("task"):
             return summary["task"]
     return "unknown"
+
+
+def looks_finite_label_text_dataset(dataset_inspection: dict[str, Any]) -> bool:
+    label_map = dataset_inspection.get("label_map") or {}
+    columns = set(dataset_inspection.get("columns") or [])
+    image_column = dataset_inspection.get("image_column")
+    choices_column = dataset_inspection.get("choices_column")
+    has_image = bool(image_column and image_column in columns)
+    has_choices = bool(choices_column and choices_column in columns)
+    return isinstance(label_map, dict) and 1 < len(label_map) <= 100 and not has_image and not has_choices
 
 
 def looks_boolean_dataset(dataset_inspection: dict[str, Any]) -> bool:

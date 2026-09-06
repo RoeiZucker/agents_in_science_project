@@ -1,0 +1,22 @@
+{
+  "context_version": 1,
+  "dataset": "ucberkeley-dlab/measuring-hate-speech",
+  "dataset_context": {
+    "subset": "default",
+    "split": "train",
+    "question_column": "text",
+    "context_column": "",
+    "answer_column": "hate_speech_score",
+    "choices_column": "",
+    "choices_columns": [],
+    "image_column": "",
+    "task": "classification",
+    "evaluation_method": "macro_f1",
+    "label_threshold": 0.5,
+    "label_map": {"0": "not hate speech", "1": "hate speech"},
+    "prompt_template": "Classify the text as not hate speech or hate speech.\nText: {text}",
+    "notes": "The dataset card defines hate_speech_score > 0.5 as approximately hate speech. The train-only data is evaluated zero-shot with that documented binary threshold and macro F1."
+  },
+  "model_context": {"notes": "Binary hate-speech classifiers and constrained generative classifiers are comparable."},
+  "confidence": "medium"
+}

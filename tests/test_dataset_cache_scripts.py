@@ -59,7 +59,7 @@ class DatasetCacheScriptTests(unittest.TestCase):
                 include_models=True,
             )
 
-            self.assertEqual(selected_models(args), ["model/a"])
+            self.assertEqual(selected_models(args, []), ["model/a"])
 
     @patch("download_condition_datasets.snapshot_download")
     def test_download_model_uses_project_cache(self, snapshot_download) -> None:
@@ -91,7 +91,13 @@ class DatasetCacheScriptTests(unittest.TestCase):
             modules_cache = root / ".hf_cache" / "modules" / "datasets_modules" / "datasets"
             datasets_cache.mkdir(parents=True)
             modules_cache.mkdir(parents=True)
-            args = SimpleNamespace(all_datasets_cache=True)
+            args = SimpleNamespace(
+                all_datasets_cache=True,
+                all_models_cache=False,
+                model_cache=False,
+                dataset=[],
+                conditions_csv=None,
+            )
 
             targets = deletion_targets(root, args)
 
